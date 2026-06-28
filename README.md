@@ -24,6 +24,12 @@ This tool implements a multi-module QC pipeline for XRF core scanner data produc
 
 Each module contributes to a weighted **Quality Index (QI)** and a **Quality Flag (QF)** per measurement point.
 
+### About QC4 (Rolling QC)
+
+Throughput, Rh-Lα, and Rh-Lα-Inc are not chemical concentrations — they are **instrumental/physical indicators** of the measurement itself. Throughput is the detector's total count rate; Rh-Lα and Rh-Lα-Inc are the coherent (Rayleigh) and incoherent (Compton) scatter of the X-ray tube's own Rhodium anode line off the sample surface. A physical measurement issue (a crack, an air gap, a dry/wet transition, detector drift) tends to disturb **at least one** of these three simultaneously, since all three depend on the same measurement geometry/matrix at that point.
+
+Because of that, QC4 (by default) takes the **largest** absolute rolling z-score (`|delta_z|`) among the three variables, rather than the mean — averaging would dilute a real, localized disturbance that may only show up strongly in one of them. This default can be turned off in the app (sidebar checkbox), falling back to the legacy behavior of considering only Rh-Lα-Inc.
+
 ## Files
 
 - `qc_core.py` — QC pipeline (importable module)

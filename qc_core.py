@@ -24,12 +24,24 @@ DEPTH_COL = "CompositeDepth (mm)"
 REPLICATE_COL = "Replicate Nr Count"
 ROLLING_WINDOW = 5
 
+# Variáveis usadas no QC4 (rolling). As três tendem a reagir juntas a um
+# mesmo problema físico de medição (rachadura, bolha de ar, transição
+# seco/úmido) — ver compute_scores/combine_rolling_vars.
+ROLLING_VARS = ["Throughput", "Rh-La Area", "Rh-La-Inc Area"]
+
+# CompositeDepth (mm) só é preenchido na primeira passada (Rep0); em Rep1/Rep2
+# essa coluna vem nula. Spectrum + CoreDepth identificam a posição física de
+# medição e estão sempre preenchidos em todas as réplicas — é essa combinação
+# que QC5 usa para casar réplicas (ver REPLICATE_KEY_COLS).
+REPLICATE_KEY_COLS = ["Spectrum", "CoreDepth"]
+
 REQUIRED_COLUMNS = [
     DEPTH_COL,
     REPLICATE_COL,
     "Throughput",
     "Rh-La Area",
     "Rh-La-Inc Area",
+    *REPLICATE_KEY_COLS,
 ]
 
 ELEMENTS_PCA = [
@@ -45,6 +57,12 @@ ELEMENTS_PCA = [
     "Zr-Ka Area",
 ]
 
+# PCA(n_components=2) exige >=2 features; a matriz de covariância das 2 PCs
+# degenera com poucas amostras. Abaixo desses mínimos, QC6 é pulada com um
+# score neutro em vez de travar o pipeline (ver qc_pca/compute_scores).
+MIN_PCA_ELEMENTS = 2
+MIN_PCA_ROWS = 3
+
 ELEMENTS_REPLICATES = [
     "Al-Ka Area",
     "Si-Ka Area",
@@ -53,6 +71,27 @@ ELEMENTS_REPLICATES = [
     "Ti-Ka Area",
     "Fe-Ka Area",
 ]
+
+# Colunas cuja ausência (NaN) numa linha torna o QI dessa linha indeterminado
+# (QC1-QC3 — sempre obrigatórias). QC5/QC6 já têm seus próprios fallbacks e
+# não entram aqui de propósito (ver TODO.md achado C2).
+CRITICAL_INPUT_COLS = ["Throughput", "Rh-La Area", "Rh-La-Inc Area"]
+
+# Pesos do Quality Index — nomeados para permitir recalcular o QI só com os
+# módulos disponíveis quando strict_missing_data=False (ver compute_scores).
+QI_WEIGHTS = {
+    "Score_Throughput": 0.25,
+    "Score_RhLa": 0.15,
+    "Score_RhLaInc": 0.20,
+    "Score_Rolling": 0.20,
+    "Score_Replica": 0.15,
+    "Score_PCA": 0.05,
+}
+
+# Quality Flag distinto para linhas com dado crítico faltante — nunca deve
+# ser confundido com QF=0 (OK) nem com os flags 1-3 (que indicam dado medido
+# e avaliado como problemático). "ND" = não determinado.
+QF_INDETERMINATE = 9
 
 # ============================================================
 # FUNÇÕES ESTATÍSTICAS
@@ -109,9 +148,16 @@ def check_file(df, lang="pt"):
     if REPLICATE_COL in df.columns:
         if "Rep0" not in df[REPLICATE_COL].values:
             errors.append(msg("missing_rep0", col=REPLICATE_COL))
+        else:
+            n_rep0 = (df[REPLICATE_COL] == "Rep0").sum()
+            if n_rep0 < MIN_PCA_ROWS:
+                warnings.append(msg("pca_too_few_rows", n=n_rep0, min=MIN_PCA_ROWS))
 
+    available_pca = [e for e in ELEMENTS_PCA if e in df.columns]
     missing_pca = [e for e in ELEMENTS_PCA if e not in df.columns]
-    if missing_pca:
+    if len(available_pca) < MIN_PCA_ELEMENTS:
+        warnings.append(msg("pca_unavailable", n=len(available_pca), min=MIN_PCA_ELEMENTS))
+    elif missing_pca:
         warnings.append(msg("missing_pca", els=missing_pca))
 
     missing_rep = [e for e in ELEMENTS_REPLICATES if e not in df.columns]
@@ -160,7 +206,7 @@ def qc_rh_la_inc(rep0):
 def qc_rolling(rep0, window=ROLLING_WINDOW):
     """QC4 — Rolling QC: detecta deriva local via média móvel."""
     rep0 = rep0.copy()
-    for var in ["Throughput", "Rh-La Area", "Rh-La-Inc Area"]:
+    for var in ROLLING_VARS:
         roll = rep0[var].rolling(window=window, center=True, min_periods=1).mean()
         rep0[f"{var}_rolling"] = roll
         rep0[f"{var}_delta"] = rep0[var] - roll
@@ -169,10 +215,15 @@ def qc_rolling(rep0, window=ROLLING_WINDOW):
 
 
 def qc_replicates(df, rep0):
-    """QC5 — RPD médio entre réplicas por profundidade."""
+    """
+    QC5 — RPD médio entre réplicas por posição de medição.
+
+    Réplicas (Rep0/Rep1/Rep2/...) são casadas por REPLICATE_KEY_COLS
+    (Spectrum + CoreDepth), não por DEPTH_COL: CompositeDepth (mm) só é
+    calculado na primeira passada e fica nulo nas réplicas seguintes.
+    """
     replica_stats = []
-    for depth in sorted(df[DEPTH_COL].unique()):
-        subset = df[df[DEPTH_COL] == depth]
+    for key, subset in df.groupby(REPLICATE_KEY_COLS):
         if len(subset) < 2:
             continue
         rpds = []
@@ -182,17 +233,30 @@ def qc_replicates(df, rep0):
             rpd = calculate_rpd(subset[el].values)
             rpds.append(rpd)
         mean_rpd = np.nanmean(rpds) if rpds else np.nan
-        replica_stats.append([depth, mean_rpd])
+        replica_stats.append([*key, mean_rpd])
 
-    replica_df = pd.DataFrame(replica_stats, columns=[DEPTH_COL, "Mean_RPD"])
-    rep0 = rep0.merge(replica_df, on=DEPTH_COL, how="left")
+    replica_df = pd.DataFrame(replica_stats, columns=[*REPLICATE_KEY_COLS, "Mean_RPD"])
+    rep0 = rep0.merge(replica_df, on=REPLICATE_KEY_COLS, how="left")
     return rep0
 
 
 def qc_pca(rep0):
-    """QC6 — PCA multivariada + distância de Mahalanobis."""
+    """
+    QC6 — PCA multivariada + distância de Mahalanobis.
+
+    Se não houver elementos/linhas suficientes (MIN_PCA_ELEMENTS/MIN_PCA_ROWS),
+    a PCA é pulada: PC1/PC2/Mahalanobis ficam NaN e compute_scores aplica um
+    score neutro, em vez de deixar o pipeline travar (ver TODO.md item 2.2/1.2).
+    """
     rep0 = rep0.copy()
     pca_elements = [x for x in ELEMENTS_PCA if x in rep0.columns]
+
+    if len(pca_elements) < MIN_PCA_ELEMENTS or len(rep0) < MIN_PCA_ROWS:
+        rep0["PC1"] = np.nan
+        rep0["PC2"] = np.nan
+        rep0["Mahalanobis"] = np.nan
+        return rep0, pca_elements
+
     X = rep0[pca_elements].fillna(0)
     Xs = StandardScaler().fit_transform(X)
     pca = PCA(n_components=2)
@@ -201,7 +265,7 @@ def qc_pca(rep0):
     rep0["PC2"] = pcs[:, 1]
 
     cov = np.cov(pcs.T)
-    inv_cov = np.linalg.inv(cov)
+    inv_cov = np.linalg.pinv(cov)
     center = pcs.mean(axis=0)
     rep0["Mahalanobis"] = [mahalanobis(row, center, inv_cov) for row in pcs]
 
@@ -212,35 +276,73 @@ def qc_pca(rep0):
 # SCORES
 # ============================================================
 
-def compute_scores(rep0):
-    """Calcula scores individuais e Quality Index (QI)."""
+def compute_scores(rep0, strict_missing_data=True, combine_rolling_vars=True):
+    """
+    Calcula scores individuais e Quality Index (QI).
+
+    Args:
+        strict_missing_data: se True (padrão), qualquer score individual
+            faltante (NaN) invalida o QI da linha inteira — postura
+            conservadora. Se False, o QI é recalculado só com os módulos
+            disponíveis, redistribuindo os pesos entre eles. Em ambos os
+            casos a linha é sinalizada como indeterminada em compute_flags;
+            o que muda é apenas se o QI fica indefinido ou aproximado.
+        combine_rolling_vars: se True (padrão), o QC4 usa o maior |z-score|
+            de deriva entre as ROLLING_VARS (Throughput, Rh-Lα, Rh-Lα-Inc) —
+            um problema físico de medição tende a aparecer em pelo menos uma
+            das três. Se False, mantém o comportamento legado: só Rh-Lα-Inc.
+            O valor efetivamente usado fica em rep0["Rolling_z"].
+    """
     rep0 = rep0.copy()
 
     rep0["Score_Throughput"] = score_from_z(rep0["Throughput_z"])
     rep0["Score_RhLa"] = score_from_z(rep0["RhLa_z"])
     rep0["Score_RhLaInc"] = score_from_z(rep0["RhLaInc_z"])
-    rep0["Score_Rolling"] = score_from_z(rep0["Rh-La-Inc Area_delta_z"])
+
+    if combine_rolling_vars:
+        delta_z_cols = [f"{v}_delta_z" for v in ROLLING_VARS]
+        rep0["Rolling_z"] = rep0[delta_z_cols].abs().max(axis=1)
+    else:
+        rep0["Rolling_z"] = rep0["Rh-La-Inc Area_delta_z"].abs()
+    rep0["Score_Rolling"] = score_from_z(rep0["Rolling_z"])
+
     rep0["Score_Replica"] = np.where(
         rep0["Mean_RPD"].isna(),
         100,
         np.maximum(0, 100 - rep0["Mean_RPD"] * 4),
     )
 
-    p95 = np.percentile(rep0["Mahalanobis"], 95)
-    p99 = np.percentile(rep0["Mahalanobis"], 99)
-    rep0["Score_PCA"] = np.where(
-        rep0["Mahalanobis"] < p95, 100,
-        np.where(rep0["Mahalanobis"] < p99, 60, 20)
-    )
+    mahalanobis_valid = rep0["Mahalanobis"].notna()
+    if mahalanobis_valid.any():
+        valid_values = rep0.loc[mahalanobis_valid, "Mahalanobis"]
+        p95 = np.percentile(valid_values, 95)
+        p99 = np.percentile(valid_values, 99)
+        rep0["Score_PCA"] = np.where(
+            mahalanobis_valid,
+            np.where(
+                rep0["Mahalanobis"] < p95, 100,
+                np.where(rep0["Mahalanobis"] < p99, 60, 20)
+            ),
+            100,
+        )
+    else:
+        # PCA pulada para o arquivo inteiro (ver qc_pca) — score neutro,
+        # mesmo padrão já usado em Score_Replica quando não há réplica.
+        p95 = p99 = np.nan
+        rep0["Score_PCA"] = 100
 
-    rep0["QI"] = (
-        0.25 * rep0["Score_Throughput"]
-        + 0.15 * rep0["Score_RhLa"]
-        + 0.20 * rep0["Score_RhLaInc"]
-        + 0.20 * rep0["Score_Rolling"]
-        + 0.15 * rep0["Score_Replica"]
-        + 0.05 * rep0["Score_PCA"]
-    )
+    score_cols = list(QI_WEIGHTS.keys())
+    weights = np.array(list(QI_WEIGHTS.values()))
+    scores = rep0[score_cols].to_numpy(dtype=float)
+
+    if strict_missing_data:
+        # Produto matricial: NaN em qualquer score propaga NaN para o QI.
+        rep0["QI"] = scores @ weights
+    else:
+        available = ~np.isnan(scores)
+        weighted_sum = np.nansum(scores * weights, axis=1)
+        available_weight = available @ weights
+        rep0["QI"] = np.where(available_weight > 0, weighted_sum / available_weight, np.nan)
 
     return rep0, p95, p99
 
@@ -250,17 +352,29 @@ def compute_scores(rep0):
 # ============================================================
 
 def compute_flags(rep0, p95, p99):
-    """Atribui Quality Flag (QF): 0=OK, 1=Atenção, 2=Suspeito, 3=Rejeitado."""
+    """
+    Atribui Quality Flag (QF): 0=OK, 1=Atenção, 2=Suspeito, 3=Rejeitado,
+    QF_INDETERMINATE (9)=indeterminado (dado crítico faltante — ver
+    CRITICAL_INPUT_COLS). Uma linha indeterminada nunca recebe 0-3: ou se
+    sabe o suficiente para classificar, ou se marca como indeterminada —
+    nunca se assume "OK" por omissão (ver TODO.md achado C2).
+    """
     rep0 = rep0.copy()
+    is_indeterminate = rep0[CRITICAL_INPUT_COLS].isna().any(axis=1) | rep0["QI"].isna()
+
     flags = []
-    for _, row in rep0.iterrows():
+    for idx, row in rep0.iterrows():
+        if is_indeterminate.loc[idx]:
+            flags.append(QF_INDETERMINATE)
+            continue
+
         qf = 0
         for z_col in ["Throughput_z", "RhLa_z", "RhLaInc_z"]:
             if abs(row[z_col]) > 2:
                 qf = max(qf, 2)
             if abs(row[z_col]) > 3:
                 qf = 3
-        if abs(row["Rh-La-Inc Area_delta_z"]) > 2:
+        if row["Rolling_z"] > 2:
             qf = max(qf, 2)
         if row["Mahalanobis"] > p95:
             qf = max(qf, 2)
@@ -279,9 +393,13 @@ def compute_flags(rep0, p95, p99):
 # PIPELINE COMPLETO
 # ============================================================
 
-def run_qc(df):
+def run_qc(df, strict_missing_data=True, combine_rolling_vars=True):
     """
     Executa o pipeline QC completo sobre o DataFrame bruto.
+
+    Args:
+        strict_missing_data: ver compute_scores. Padrão True (conservador).
+        combine_rolling_vars: ver compute_scores. Padrão True.
 
     Retorna:
         rep0         : DataFrame com todos os campos QC calculados
@@ -298,7 +416,9 @@ def run_qc(df):
     rep0 = qc_rolling(rep0)
     rep0 = qc_replicates(df, rep0)
     rep0, pca_elements = qc_pca(rep0)
-    rep0, p95, p99 = compute_scores(rep0)
+    rep0, p95, p99 = compute_scores(
+        rep0, strict_missing_data=strict_missing_data, combine_rolling_vars=combine_rolling_vars
+    )
     rep0 = compute_flags(rep0, p95, p99)
 
     return rep0, p95, p99, pca_elements

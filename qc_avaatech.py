@@ -9,16 +9,26 @@ Uso:
 """
 
 import io
+import os
 import streamlit as st
 import pandas as pd
 import matplotlib.pyplot as plt
 
 from qc_core import (
     DEPTH_COL,
+    QF_INDETERMINATE,
     check_file,
     run_qc,
 )
 from i18n import TEXTS, DEFAULT_LANG
+
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+LOGO_PNG = os.path.join(BASE_DIR, "assets", "lamplus_logo.png")
+
+# Posição visual de cada QF no gráfico de barras (QF_INDETERMINATE=9 não deve
+# ser plotado com sua altura literal, ou pareceria "3x mais grave" que QF=3).
+QF_PLOT_ORDER = {0: 0, 1: 1, 2: 2, 3: 3, QF_INDETERMINATE: 4}
+QF_COLORS = {0: "#2ca02c", 1: "#ff7f0e", 2: "#d62728", 3: "#7f0000", QF_INDETERMINATE: "#7f7f7f"}
 
 # ============================================================
 # FIGURAS
@@ -75,16 +85,16 @@ def plot_pca(rep0, p95, p99, T):
 
 
 def plot_qi(rep0, T):
-    colors = {0: "#2ca02c", 1: "#ff7f0e", 2: "#d62728", 3: "#7f0000"}
-    c = rep0["QF"].map(colors).fillna("#aaaaaa")
+    c = rep0["QF"].map(QF_COLORS).fillna("#aaaaaa")
+    qf_plot_pos = rep0["QF"].map(QF_PLOT_ORDER)
     fig, axes = plt.subplots(2, 1, figsize=(10, 5), sharex=True)
-    axes[0].bar(rep0[DEPTH_COL], rep0["QI"], color=c.values, width=8)
+    axes[0].bar(rep0[DEPTH_COL], rep0["QI"].fillna(0), color=c.values, width=8)
     axes[0].axhline(80, color="gray", ls="--", lw=0.7)
     axes[0].axhline(40, color="red", ls="--", lw=0.7)
     axes[0].set_ylabel(T["plot_qi_ylabel"])
     axes[0].set_title(T["plot_qi_title"])
-    axes[1].bar(rep0[DEPTH_COL], rep0["QF"], color=c.values, width=8)
-    axes[1].set_yticks([0, 1, 2, 3])
+    axes[1].bar(rep0[DEPTH_COL], qf_plot_pos, color=c.values, width=8)
+    axes[1].set_yticks(list(QF_PLOT_ORDER.values()))
     axes[1].set_yticklabels(T["plot_qf_labels"])
     axes[1].set_xlabel(T["depth_axis"])
     axes[1].set_ylabel(T["plot_qf_ylabel"])
@@ -133,8 +143,24 @@ lang_label = st.sidebar.selectbox(
 lang = LANG_OPTIONS[lang_label]
 T = TEXTS[lang]
 
-st.title(T["app_title"])
-st.caption(T["app_caption"])
+strict_missing_data = st.sidebar.checkbox(
+    T["strict_missing_label"],
+    value=True,
+    help=T["strict_missing_help"],
+)
+combine_rolling_vars = st.sidebar.checkbox(
+    T["combine_rolling_label"],
+    value=True,
+    help=T["combine_rolling_help"],
+)
+
+col_title, col_logo = st.columns([5, 1])
+with col_title:
+    st.title(T["app_title"])
+    st.caption(T["app_caption"])
+with col_logo:
+    if os.path.isfile(LOGO_PNG):
+        st.image(LOGO_PNG, width=100)
 
 uploaded = st.file_uploader(T["upload_label"], type=["xlsx"])
 
@@ -166,19 +192,22 @@ if warnings:
 # Rodar QC
 with st.spinner(T["qc_spinner"]):
     try:
-        rep0, p95, p99, pca_elements = run_qc(df_raw)
+        rep0, p95, p99, pca_elements = run_qc(
+            df_raw, strict_missing_data=strict_missing_data, combine_rolling_vars=combine_rolling_vars
+        )
     except Exception as e:
         st.error(T["qc_error"].format(error=e))
         st.stop()
 
 # Resumo
 st.subheader(T["summary_header"])
-col1, col2, col3, col4 = st.columns(4)
+col1, col2, col3, col4, col5 = st.columns(5)
 qf_counts = rep0["QF"].value_counts().sort_index()
 col1.metric(T["metric_measurements"], len(rep0))
 col2.metric(T["metric_mean_qi"], f"{rep0['QI'].mean():.1f}")
 col3.metric(T["metric_qf_ok"], qf_counts.get(0, 0))
 col4.metric(T["metric_qf_rejected"], qf_counts.get(3, 0))
+col5.metric(T["metric_qf_indeterminate"], qf_counts.get(QF_INDETERMINATE, 0))
 
 # Figuras
 st.subheader(T["diagnostics_header"])
@@ -201,7 +230,10 @@ with tab4:
     st.pyplot(plot_replicas(rep0, T))
 
 with tab5:
-    st.pyplot(plot_pca(rep0, p95, p99, T))
+    if rep0["Mahalanobis"].notna().any():
+        st.pyplot(plot_pca(rep0, p95, p99, T))
+    else:
+        st.info(T["pca_skipped_info"])
 
 with tab6:
     st.pyplot(plot_qi(rep0, T))
