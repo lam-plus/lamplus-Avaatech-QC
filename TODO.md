@@ -129,13 +129,26 @@ Itens combinados com o usuário mas que ainda não foram codificados — registr
 
 ### 8.1 Exportação de relatório em PDF por testemunho
 
-Hoje a única saída além da tela é o `.xlsx` (`to_excel_bytes`, `qc_avaatech.py`), com todas as linhas `Rep0` misturadas, sem distinção por testemunho. Plano combinado em 2026-06-28 (não implementado):
+Hoje a única saída além da tela é o `.xlsx` (`to_excel_bytes`, `qc_avaatech.py`), com todas as linhas `Rep0` misturadas, sem distinção por testemunho. Plano combinado em 2026-06-28:
 
-- **Granularidade:** agrupar por **testemunho**, não por valor exato de `Spectrum`. `Spectrum` mistura nome do testemunho + seção (ex. `"lontra-T01"`..`"lontra-T06"` são 6 seções de **um** testemunho "lontra", com profundidades compostas contínuas) — confirmado no arquivo de exemplo. Precisa de uma função (`qc_core.py`) que extraia o nome do testemunho a partir do prefixo de `Spectrum` (ex. regex `^(.+?)-T\d+$`, com fallback para o próprio `Spectrum` se não casar o padrão) e agrupe as seções antes de gerar o PDF.
-- **Biblioteca:** `matplotlib.backends.backend_pdf.PdfPages` — zero dependência nova (matplotlib já está no `requirements.txt`), reaproveita os `plot_*()` já existentes como páginas do PDF.
-- **Conteúdo do PDF:** capa (logo, nome do testemunho, profundidade composta, nº de medições, data/hora, modos de QC usados — `strict_missing_data`/`combine_rolling_vars`, para reprodutibilidade) + uma página por gráfico de diagnóstico + uma página de tabela só com linhas `QF` ∈ {2, 3, ND}.
-- **UI:** seletor de testemunho + opção "Todos" (gera `.zip` com um PDF por testemunho), botão de download ao lado do `.xlsx`, geração só no clique.
-- Módulo novo sugerido: `report_pdf.py`, separado de `qc_core.py` (que deve continuar sem dependência de relatório/UI) e de `qc_avaatech.py`.
+- **Granularidade:** agrupar por **testemunho**, não por valor exato de `Spectrum`. `Spectrum` mistura nome do testemunho + seção (ex. `"lontra-T01"`..`"lontra-T06"` são 6 seções de **um** testemunho "lontra", com profundidades compostas contínuas) — confirmado no arquivo de exemplo. Precisa de uma função (`qc_core.py`) que extraia o nome do testemunho a partir do prefixo de `Spectrum` (ex. regex `^(.+?)-T\d+$`, com fallback para o próprio `Spectrum` se não casar o padrão) e agrupe as seções antes de gerar o PDF. **Ainda não implementado.**
+- **Biblioteca:** `matplotlib.backends.backend_pdf.PdfPages` — zero dependência nova (matplotlib já está no `requirements.txt`).
+- **Conteúdo do PDF:** capa (logo, nome do testemunho, profundidade composta, nº de medições, data/hora, modos de QC usados — `strict_missing_data`/`combine_rolling_vars`, para reprodutibilidade) + uma página por gráfico de diagnóstico + página de "Intervalos Problemáticos" (✅ **implementada em 2026-06-28**, ver abaixo) em vez de listar ponto a ponto. **Capa e páginas de gráfico ainda não implementadas** — só a página de intervalos existe até agora.
+- **UI:** seletor de testemunho + opção "Todos" (gera `.zip` com um PDF por testemunho), botão de download ao lado do `.xlsx`, geração só no clique. **Ainda não implementado** — `report_pdf.py` existe como módulo, mas não está conectado a `qc_avaatech.py` ainda.
+- Módulo `report_pdf.py` **criado em 2026-06-28**, separado de `qc_core.py` (que continua sem dependência de relatório/UI) e de `qc_avaatech.py`.
+
+**Progresso até agora (2026-06-28) — página "Intervalos Problemáticos":**
+- `qc_core.py`: `compute_flags` passou a rastrear **por que** cada linha foi flagrada — nova coluna `rep0["QF_Causes"]` (string com códigos `CAUSE_*` separados por `;`, vazia se `QF<2`). Resolve também parte da lacuna de explicabilidade já anotada antes nesta seção (nenhuma explicação de qual critério disparou o flag). Novos códigos: `CAUSE_THROUGHPUT`, `CAUSE_RH_LA`, `CAUSE_RH_LA_INC`, `CAUSE_ROLLING`, `CAUSE_PCA`, `CAUSE_QI_LOW`, `CAUSE_MISSING_DATA`. `QF_PLOT_ORDER` movido de `qc_avaatech.py` para `qc_core.py` (era duplicação de fonte de verdade — `report_pdf.py` também precisa dele para traduzir QF→label).
+- `report_pdf.py`: `detect_intervals(rep0, min_gap=20)` agrupa medidas consecutivas com `QF >= 2` (inclui `QF_INDETERMINATE`) em clusters contíguos, tolerando gaps de até `min_gap` mm; cada intervalo retorna profundidade início/fim, nº de medidas, QF máximo, e o conjunto de causas únicas. `build_problem_intervals_page(intervals, T)` renderiza a tabela como página matplotlib, traduzindo QF e causas via `locales/*.json`.
+- Validado contra `data/exemplo_dados_consolidados.xlsx`: 37 intervalos detectados, causas corretas por linha, e um caso sintético com `QF_INDETERMINATE` no meio de um cluster (label "ND-Indeterminado" exibido corretamente, não o número `9` cru).
+- Novas chaves em `locales/pt.json`/`en.json`: `report_intervals_title/empty/depth_start/depth_end/n_points/qf_max/causes`, `cause_throughput/rh_la/rh_la_inc/rolling/pca/qi_low/missing_data`.
+
+**Progresso adicional (2026-06-28) — aviso de "flag pontual" (QF>=2 mas QI>=80):**
+- `qc_core.py`: nova constante `QI_THRESHOLD_OK = 80` (extraída do literal mágico que já existia em `compute_flags`, reusado também aqui — resolve uma pontinha do item 6.2). `is_pointwise_flag(rep0)` identifica linhas onde `QF` é 2/3 mas `QI >= QI_THRESHOLD_OK` — ou seja, o flag veio de um critério pontual (z-score ou Mahalanobis) e não do QI agregado; `QF_INDETERMINATE` é excluído de propósito (motivo ali é dado faltante, não critério pontual). `format_causes(causes, T)` traduz códigos `CAUSE_*` para texto (movido de um helper privado que existia em `report_pdf.py`, agora compartilhado). `add_pointwise_flag_notes(rep0, lang="pt")` adiciona `rep0["Pointwise_Flag_Note"]` com a explicação traduzida, vazia para as demais linhas.
+- `qc_avaatech.py`: chama `add_pointwise_flag_notes` logo após `run_qc`, então a coluna nova aparece automaticamente na tabela exibida (`st.dataframe`) e no `.xlsx` exportado (`to_excel_bytes`), sem código extra em nenhum dos dois.
+- `report_pdf.py`: `detect_intervals` agora também calcula `has_pointwise_flag` por intervalo (usa `qc_core.is_pointwise_flag`); `build_problem_intervals_page` marca esses intervalos com um ícone "⚠" junto ao QF máximo e adiciona uma nota de rodapé na página (só aparece se houver pelo menos 1 intervalo marcado).
+- Validado: 72 medidas pontuais identificadas no arquivo real, notas traduzidas corretamente em PT/EN com causas e QI formatados, vazias para as demais linhas; 34 dos 37 intervalos detectados marcados como pontuais; sem regressão na distribuição de QF.
+- Novas chaves: `pointwise_flag_note`, `pdf_pointwise_footnote` em `locales/pt.json`/`en.json`.
 
 ### 8.2 Campo "Operador" no formulário da UI
 
@@ -146,6 +159,15 @@ Pedido em 2026-06-28: adicionar um campo de texto na interface (`qc_avaatech.py`
 Pedido em 2026-06-28: adicionar um campo de texto livre (ex. `st.text_area`) onde o operador possa registrar observações sobre a sessão de QC (condições da medição, ressalvas, contexto da amostra, etc.). O conteúdo desse campo também deve ser incluído no relatório PDF (item 8.1), provavelmente na página de capa ou numa página dedicada de observações.
 
 Ambos os campos (8.2/8.3) são só para compor o PDF — não alteram o cálculo do QC em si, e precisam de chaves novas em `locales/pt.json`/`en.json` (label dos campos, placeholder, texto do cabeçalho no PDF).
+
+### 8.4 Melhorar a PCA (QC6): vetores e clusters
+
+Pedido em 2026-06-28 (`qc_core.py` `qc_pca` / `qc_avaatech.py` `plot_pca`): enriquecer a PCA atual (hoje só `PC1`/`PC2` + distância de Mahalanobis, ver resumo de parâmetros já levantado nesta conversa) com:
+
+- **Vetores (loadings/biplot):** desenhar no gráfico de PCA as setas dos *loadings* de cada elemento de `ELEMENTS_PCA` sobre PC1/PC2 (de `pca.components_`, já disponível via sklearn — `qc_pca` já guarda o objeto `pca` localmente, só não o retorna hoje), mostrando quais elementos mais influenciam cada componente. Precisa decidir: escala das setas (normalizada vs. proporcional à variância explicada) e se mostra todos os elementos ou só os de maior contribuição (pode poluir o gráfico com 10 elementos).
+- **Clusters:** agrupar as medições no espaço PC1/PC2 (ex. K-means ou clustering hierárquico) para identificar agrupamentos geoquímicos, coloridos no scatter em vez de (ou além de) colorir por distância de Mahalanobis. Precisa decidir: método de clustering, número de clusters (fixo vs. escolhido automaticamente, ex. silhouette score), e se os clusters entram só na visualização ou também influenciam `Score_PCA`/`QF` de alguma forma.
+
+Ainda não implementado — só registrado aqui. Antes de codificar, vale discutir separadamente as decisões de método/parâmetros de cada parte (vetores e clusters), como já foi feito para os outros itens desta seção.
 
 ---
 

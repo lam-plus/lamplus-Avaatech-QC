@@ -14,7 +14,7 @@ from sklearn.preprocessing import StandardScaler
 from sklearn.decomposition import PCA
 from scipy.spatial.distance import mahalanobis
 
-from i18n import CHECK_MESSAGES
+from i18n import CHECK_MESSAGES, TEXTS
 
 # ============================================================
 # CONFIGURAÇÕES
@@ -77,6 +77,11 @@ ELEMENTS_REPLICATES = [
 # não entram aqui de propósito (ver TODO.md achado C2).
 CRITICAL_INPUT_COLS = ["Throughput", "Rh-La Area", "Rh-La-Inc Area"]
 
+# QI mínimo para uma linha ser considerada "agregadamente OK" — usado tanto
+# em compute_flags (QF=1 se abaixo disso) quanto em is_pointwise_flag (ver
+# QUALITY FLAG) para distinguir flag disparado por critério pontual vs. QI.
+QI_THRESHOLD_OK = 80
+
 # Pesos do Quality Index — nomeados para permitir recalcular o QI só com os
 # módulos disponíveis quando strict_missing_data=False (ver compute_scores).
 QI_WEIGHTS = {
@@ -92,6 +97,22 @@ QI_WEIGHTS = {
 # ser confundido com QF=0 (OK) nem com os flags 1-3 (que indicam dado medido
 # e avaliado como problemático). "ND" = não determinado.
 QF_INDETERMINATE = 9
+
+# Posição visual de cada QF (0-3 + indeterminado) ao plotar/tabular numa
+# escala ordenada — QF_INDETERMINATE=9 não deve ser exibido na sua altura
+# literal, ou pareceria "mais grave" que QF=3 numa escala 0-3.
+QF_PLOT_ORDER = {0: 0, 1: 1, 2: 2, 3: 3, QF_INDETERMINATE: 4}
+
+# Códigos de causa atribuídos a uma linha quando ela é flagrada (QF>=2 ou
+# indeterminada). Usados por compute_flags (coluna QF_Causes) e traduzidos
+# na UI/relatório via locales/*.json (chave "cause_<código>").
+CAUSE_THROUGHPUT = "throughput"
+CAUSE_RH_LA = "rh_la"
+CAUSE_RH_LA_INC = "rh_la_inc"
+CAUSE_ROLLING = "rolling"
+CAUSE_PCA = "pca"
+CAUSE_QI_LOW = "qi_low"
+CAUSE_MISSING_DATA = "missing_data"
 
 # ============================================================
 # FUNÇÕES ESTATÍSTICAS
@@ -358,34 +379,94 @@ def compute_flags(rep0, p95, p99):
     CRITICAL_INPUT_COLS). Uma linha indeterminada nunca recebe 0-3: ou se
     sabe o suficiente para classificar, ou se marca como indeterminada —
     nunca se assume "OK" por omissão (ver TODO.md achado C2).
+
+    Também preenche rep0["QF_Causes"]: string com os códigos de causa
+    (CAUSE_*) que dispararam o flag daquela linha, separados por ";" — vazia
+    quando QF<2 (nenhuma causa relevante para reportar). Usada para agregar
+    causas por intervalo em relatórios (ver report_pdf.detect_intervals).
     """
     rep0 = rep0.copy()
     is_indeterminate = rep0[CRITICAL_INPUT_COLS].isna().any(axis=1) | rep0["QI"].isna()
 
     flags = []
+    causes = []
     for idx, row in rep0.iterrows():
         if is_indeterminate.loc[idx]:
             flags.append(QF_INDETERMINATE)
+            causes.append(CAUSE_MISSING_DATA)
             continue
 
         qf = 0
-        for z_col in ["Throughput_z", "RhLa_z", "RhLaInc_z"]:
+        row_causes = []
+        for z_col, cause in [
+            ("Throughput_z", CAUSE_THROUGHPUT),
+            ("RhLa_z", CAUSE_RH_LA),
+            ("RhLaInc_z", CAUSE_RH_LA_INC),
+        ]:
             if abs(row[z_col]) > 2:
                 qf = max(qf, 2)
+                row_causes.append(cause)
             if abs(row[z_col]) > 3:
                 qf = 3
         if row["Rolling_z"] > 2:
             qf = max(qf, 2)
+            row_causes.append(CAUSE_ROLLING)
         if row["Mahalanobis"] > p95:
             qf = max(qf, 2)
+            row_causes.append(CAUSE_PCA)
         if row["Mahalanobis"] > p99:
             qf = 3
         if row["QI"] < 40:
             qf = 3
-        if qf == 0 and row["QI"] < 80:
+            row_causes.append(CAUSE_QI_LOW)
+        if qf == 0 and row["QI"] < QI_THRESHOLD_OK:
             qf = 1
         flags.append(qf)
+        causes.append(";".join(row_causes))
     rep0["QF"] = flags
+    rep0["QF_Causes"] = causes
+    return rep0
+
+
+def is_pointwise_flag(rep0):
+    """
+    True para linhas onde QF é 2 ou 3, mas o QI agregado ainda está em faixa
+    aceitável (>= QI_THRESHOLD_OK) — ou seja, o flag foi disparado por um
+    critério pontual (z-score de uma variável específica, ou Mahalanobis),
+    não pelo QI combinado. QF_INDETERMINATE é excluído de propósito: ali o
+    motivo é dado faltante (CAUSE_MISSING_DATA), não um critério pontual.
+    """
+    return rep0["QF"].isin([2, 3]) & (rep0["QI"] >= QI_THRESHOLD_OK)
+
+
+def format_causes(causes, T):
+    """Traduz uma coleção de códigos CAUSE_* para texto legível (T = dict de traduções, ex. TEXTS[lang])."""
+    if not causes:
+        return "—"
+    labels = [T.get(f"cause_{code}", code) for code in sorted(causes)]
+    return ", ".join(labels)
+
+
+def add_pointwise_flag_notes(rep0, lang="pt"):
+    """
+    Adiciona rep0["Pointwise_Flag_Note"]: para as linhas identificadas por
+    is_pointwise_flag, explica que o QF foi disparado por um critério
+    pontual e não pelo QI agregado, usando as causas já registradas em
+    QF_Causes. String vazia para as demais linhas.
+    """
+    rep0 = rep0.copy()
+    T = TEXTS[lang]
+    mask = is_pointwise_flag(rep0)
+
+    notes = pd.Series("", index=rep0.index, dtype=object)
+    for idx in rep0.index[mask]:
+        causes_str = rep0.at[idx, "QF_Causes"]
+        causes = causes_str.split(";") if causes_str else []
+        notes.at[idx] = T["pointwise_flag_note"].format(
+            causes=format_causes(causes, T),
+            qi=rep0.at[idx, "QI"],
+        )
+    rep0["Pointwise_Flag_Note"] = notes
     return rep0
 
 
@@ -409,6 +490,7 @@ def run_qc(df, strict_missing_data=True, combine_rolling_vars=True):
     """
     rep0 = df[df[REPLICATE_COL] == "Rep0"].copy()
     rep0 = rep0.sort_values(DEPTH_COL)
+    rep0[DEPTH_COL] = rep0[DEPTH_COL].round(10)
 
     rep0 = qc_throughput(rep0)
     rep0 = qc_rh_la(rep0)

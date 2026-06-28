@@ -13,6 +13,7 @@ Frontend é **Streamlit**. Não há backend/banco de dados — tudo roda local, 
 ```
 qc_core.py              # Lógica pura do pipeline QC (sem Streamlit) — importável como lib
 qc_avaatech.py          # Frontend Streamlit — único ponto de entrada da UI
+report_pdf.py           # Geração de relatório PDF (parcial — ver TODO.md item 8.1)
 i18n.py                 # Carregador de traduções (lê locales/*.json)
 locales/
   pt.json               # Strings PT (idioma padrão)
@@ -56,7 +57,10 @@ Módulos QC individuais (cada um recebe/retorna um DataFrame `rep0`, o subconjun
 
 Agregação:
 - `compute_scores(rep0, strict_missing_data=True, combine_rolling_vars=True)` — combina os scores individuais em `QI` via `QI_WEIGHTS` (pesos nomeados: 0.25/0.15/0.20/0.20/0.15/0.05) e calcula percentis 95/99 de Mahalanobis. `strict_missing_data` controla como o `QI` é tratado quando algum score é `NaN`: restritivo (padrão) → `QI=NaN` (qualquer score ausente invalida a linha); flexível → `QI` recalculado só com os módulos disponíveis, redistribuindo os pesos. `combine_rolling_vars` controla o `Score_Rolling`/`rep0["Rolling_z"]` do QC4: combinado (padrão) → maior `|delta_z|` entre `ROLLING_VARS`; legado → só `Rh-La-Inc Area_delta_z`.
-- `compute_flags(rep0, p95, p99)` — atribui `QF` (0=OK, 1=Atenção, 2=Suspeito, 3=Rejeitado, `QF_INDETERMINATE`=9=indeterminado) via loop `iterrows()` (não vetorizado — `TODO.md` item 5.1, ainda pendente). **Corrigido em 2026-06-28** (`TODO.md` achado C2): antes, comparações com `NaN` em Python retornavam `False` e uma linha com dado crítico faltante (`CRITICAL_INPUT_COLS` = `Throughput`/`Rh-La Area`/`Rh-La-Inc Area`) acabava com `QF=0` por fallthrough. Agora `is_indeterminate = rep0[CRITICAL_INPUT_COLS].isna().any(axis=1) | rep0["QI"].isna()` é calculado **antes** do loop e força `QF=QF_INDETERMINATE` incondicionalmente — nunca cai em `QF=0`. O flag indeterminado é sempre atribuído independente de `strict_missing_data`; esse parâmetro só afeta se o `QI` da linha fica `NaN` ou uma estimativa "best effort". A checagem de deriva do QC4 usa `row["Rolling_z"]` (já calculado em `compute_scores`), não mais um literal de coluna fixo.
+- `compute_flags(rep0, p95, p99)` — atribui `QF` (0=OK, 1=Atenção, 2=Suspeito, 3=Rejeitado, `QF_INDETERMINATE`=9=indeterminado) via loop `iterrows()` (não vetorizado — `TODO.md` item 5.1, ainda pendente). **Corrigido em 2026-06-28** (`TODO.md` achado C2): antes, comparações com `NaN` em Python retornavam `False` e uma linha com dado crítico faltante (`CRITICAL_INPUT_COLS` = `Throughput`/`Rh-La Area`/`Rh-La-Inc Area`) acabava com `QF=0` por fallthrough. Agora `is_indeterminate = rep0[CRITICAL_INPUT_COLS].isna().any(axis=1) | rep0["QI"].isna()` é calculado **antes** do loop e força `QF=QF_INDETERMINATE` incondicionalmente — nunca cai em `QF=0`. O flag indeterminado é sempre atribuído independente de `strict_missing_data`; esse parâmetro só afeta se o `QI` da linha fica `NaN` ou uma estimativa "best effort". A checagem de deriva do QC4 usa `row["Rolling_z"]` (já calculado em `compute_scores`), não mais um literal de coluna fixo. **Desde 2026-06-28**, também preenche `rep0["QF_Causes"]` (string com códigos `CAUSE_*` separados por `;`, ex. `"throughput;rolling"`) — registra por que cada linha foi flagrada, consumido por `report_pdf.detect_intervals`. `QF_PLOT_ORDER` (mapa QF→posição visual 0-4) também mora em `qc_core.py`, não em `qc_avaatech.py` — importado por quem precisar exibir QF numa escala ordenada (UI e relatório).
+- `is_pointwise_flag(rep0)` — `bool` por linha: `True` quando `QF` é 2/3 mas `QI >= QI_THRESHOLD_OK` (80) — ou seja, o flag veio de um critério pontual (z-score/Mahalanobis), não do QI agregado. Exclui `QF_INDETERMINATE` (motivo ali é dado faltante). Usado por `qc_avaatech.py` (via `add_pointwise_flag_notes`) e por `report_pdf.detect_intervals`.
+- `format_causes(causes, T)` — traduz uma coleção de códigos `CAUSE_*` para texto (`T` = dict de traduções, ex. `TEXTS[lang]`). Compartilhado entre `qc_core.add_pointwise_flag_notes` e `report_pdf.build_problem_intervals_page`.
+- `add_pointwise_flag_notes(rep0, lang="pt")` — adiciona `rep0["Pointwise_Flag_Note"]`: para linhas com `is_pointwise_flag`, uma explicação traduzida usando `QF_Causes`; vazia para as demais. Chamado em `qc_avaatech.py` logo após `run_qc`, então a coluna aparece automaticamente na tabela exibida e no `.xlsx` exportado.
 - `run_qc(df, strict_missing_data=True, combine_rolling_vars=True)` — orquestra o pipeline completo, retorna `(rep0, p95, p99, pca_elements)`.
 
 ### `qc_avaatech.py` — frontend Streamlit
@@ -79,6 +83,12 @@ Para adicionar um novo idioma: criar `locales/<lang>.json` com as mesmas chaves 
 ### `locales/pt.json` / `locales/en.json`
 
 JSON plano de string→string (+ um array `plot_qf_labels` e um objeto `"check"` aninhado com os templates de `check_file`). PT é a fonte de verdade/idioma padrão; ao adicionar uma string nova na UI, adicionar a chave nos **dois** arquivos.
+
+### `report_pdf.py`
+
+Módulo de geração de relatório PDF — criado em 2026-06-28, ainda **parcial** (ver `TODO.md` item 8.1 para o que falta: capa, páginas de gráfico, integração com `qc_avaatech.py`, agrupamento por testemunho). Sem dependência de Streamlit, igual a `qc_core.py`. Hoje contém:
+- `detect_intervals(rep0, min_gap=20)` — agrupa medidas consecutivas com `QF >= 2` (inclui `QF_INDETERMINATE`) em intervalos de profundidade contíguos, tolerando gaps de até `min_gap` mm entre pontos do mesmo cluster. Cada intervalo retorna `depth_start`/`depth_end`/`n_points`/`qf_max`/`causes` (set de códigos `CAUSE_*`, lidos de `rep0["QF_Causes"]`) e `has_pointwise_flag` (`True` se alguma medida do intervalo veio de `qc_core.is_pointwise_flag` — flag por critério pontual, não pelo QI agregado).
+- `build_problem_intervals_page(intervals, T)` — renderiza esses intervalos como uma página matplotlib (tabela), em vez de listar linha a linha; traduz QF (via `QF_PLOT_ORDER`/`T["plot_qf_labels"]`) e causas (via `qc_core.format_causes`) usando o dicionário de idioma `T` passado. Intervalos com `has_pointwise_flag=True` recebem um ícone "⚠" junto ao QF máximo, e a página ganha uma nota de rodapé (`T["pdf_pointwise_footnote"]`) explicando o porquê — só aparece se houver pelo menos um intervalo marcado.
 
 ### `iniciar.py`
 

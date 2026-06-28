@@ -17,6 +17,8 @@ import matplotlib.pyplot as plt
 from qc_core import (
     DEPTH_COL,
     QF_INDETERMINATE,
+    QF_PLOT_ORDER,
+    add_pointwise_flag_notes,
     check_file,
     run_qc,
 )
@@ -25,9 +27,6 @@ from i18n import TEXTS, DEFAULT_LANG
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 LOGO_PNG = os.path.join(BASE_DIR, "assets", "lamplus_logo.png")
 
-# Posição visual de cada QF no gráfico de barras (QF_INDETERMINATE=9 não deve
-# ser plotado com sua altura literal, ou pareceria "3x mais grave" que QF=3).
-QF_PLOT_ORDER = {0: 0, 1: 1, 2: 2, 3: 3, QF_INDETERMINATE: 4}
 QF_COLORS = {0: "#2ca02c", 1: "#ff7f0e", 2: "#d62728", 3: "#7f0000", QF_INDETERMINATE: "#7f7f7f"}
 
 # ============================================================
@@ -195,6 +194,7 @@ with st.spinner(T["qc_spinner"]):
         rep0, p95, p99, pca_elements = run_qc(
             df_raw, strict_missing_data=strict_missing_data, combine_rolling_vars=combine_rolling_vars
         )
+        rep0 = add_pointwise_flag_notes(rep0, lang=lang)
     except Exception as e:
         st.error(T["qc_error"].format(error=e))
         st.stop()
