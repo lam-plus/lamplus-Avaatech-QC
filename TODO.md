@@ -169,6 +169,18 @@ Pedido em 2026-06-28 (`qc_core.py` `qc_pca` / `qc_avaatech.py` `plot_pca`): enri
 
 Ainda não implementado — só registrado aqui. Antes de codificar, vale discutir separadamente as decisões de método/parâmetros de cada parte (vetores e clusters), como já foi feito para os outros itens desta seção.
 
+### 8.5 Seletor de coluna de profundidade exibida (CompositeDepth vs. CoreDepth) — ✅ implementado em 2026-06-28
+
+Pedido e implementado em 2026-06-28: `qc_avaatech.py` ganhou um seletor na sidebar (`DEPTH_DISPLAY_COL`) para escolher entre `CompositeDepth (mm)` (padrão, `qc_core.DEPTH_COL`) e `CoreDepth` (`qc_core.CORE_DEPTH_COL`, nova constante) como coluna de profundidade no eixo X dos gráficos, na tabela exibida e no relatório PDF. **Puramente de exibição — não afeta nenhum cálculo do pipeline**; `REPLICATE_KEY_COLS = ["Spectrum", "CoreDepth"]` em `qc_core.py` permanece inalterado (continua correto para o casamento interno de réplicas, propósito diferente do seletor).
+
+- `qc_core.py`: nova constante `CORE_DEPTH_COL = "CoreDepth"`, independente de `REPLICATE_KEY_COLS` (mesmo literal "CoreDepth", propósitos diferentes — documentado em comentário para não confundir os dois).
+- `qc_avaatech.py`: todas as funções `plot_*` passaram a receber `depth_col=DEPTH_COL` (default mantém compatibilidade); a tabela exibida (`st.dataframe`) reordena as colunas para colocar `DEPTH_DISPLAY_COL` primeiro (sem alterar a ordem das linhas nem o `.xlsx` exportado, que continua com `rep0` original intacto).
+- `report_pdf.py`: `detect_intervals(rep0, min_gap=20, depth_col=DEPTH_COL)` e `build_problem_intervals_page(intervals, T, depth_col=DEPTH_COL)` ganharam o parâmetro. **Detalhe de correção importante:** a ordenação e a decisão de gap (`> min_gap`) usam **sempre** `qc_core.DEPTH_COL` (contínua/monotônica), nunca `depth_col` — usar `CoreDepth` (que reinicia a cada seção) para essa decisão misturaria/mascararia transições de seção como "gap pequeno" (diferença ficaria negativa, nunca disparando um novo cluster). `depth_col` só é usado para os valores `depth_start`/`depth_end` efetivamente exibidos.
+- **Limitação conhecida, documentada em código e no tooltip do seletor:** num testemunho com múltiplas seções, um intervalo que cruze uma transição de seção pode reportar `depth_end < depth_start` quando `depth_col=CoreDepth` (confirmado no arquivo de exemplo: 2 dos 37 intervalos). É puramente cosmético — a contagem de intervalos e as causas agregadas são idênticas entre os dois modos (validado).
+- Cabeçalhos da tabela de intervalos no PDF (`report_intervals_depth_start`/`_end`) passaram a ser templates com `{label}` (ex. "Início (CompositeDepth, mm)"), preenchido com o nome técnico curto da coluna escolhida.
+- Novas chaves em `locales/pt.json`/`en.json`: `depth_display_label/composite/core/help`.
+- Validado: gráficos e páginas de PDF renderizam sem erro nos dois modos; `detect_intervals` produz a mesma contagem de intervalos (37) e mesmas causas com `CompositeDepth` e `CoreDepth`; `REPLICATE_KEY_COLS` confirmado intocado linha por linha; app Streamlit testado de ponta a ponta (HTTP 200).
+
 ---
 
 ## Resumo de prioridade sugerida

@@ -24,6 +24,14 @@ DEPTH_COL = "CompositeDepth (mm)"
 REPLICATE_COL = "Replicate Nr Count"
 ROLLING_WINDOW = 5
 
+# Nome da coluna de profundidade local/por seção (reinicia a cada tubo de
+# amostragem, ao contrário de DEPTH_COL que é contínua ao longo de todo o
+# testemunho). Usada apenas como opção de exibição em qc_avaatech.py/
+# report_pdf.py (eixo X dos gráficos, tabela, PDF) — NUNCA no cálculo do
+# pipeline. Não confundir com REPLICATE_KEY_COLS abaixo, que usa o mesmo
+# nome de coluna para outro propósito (casar réplicas) e não deve mudar.
+CORE_DEPTH_COL = "CoreDepth"
+
 # Variáveis usadas no QC4 (rolling). As três tendem a reagir juntas a um
 # mesmo problema físico de medição (rachadura, bolha de ar, transição
 # seco/úmido) — ver compute_scores/combine_rolling_vars.

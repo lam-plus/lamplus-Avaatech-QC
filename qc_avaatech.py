@@ -15,6 +15,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 
 from qc_core import (
+    CORE_DEPTH_COL,
     DEPTH_COL,
     QF_INDETERMINATE,
     QF_PLOT_ORDER,
@@ -33,9 +34,9 @@ QF_COLORS = {0: "#2ca02c", 1: "#ff7f0e", 2: "#d62728", 3: "#7f0000", QF_INDETERM
 # FIGURAS
 # ============================================================
 
-def plot_throughput(rep0, T):
+def plot_throughput(rep0, T, depth_col=DEPTH_COL):
     fig, ax = plt.subplots(figsize=(10, 3))
-    ax.plot(rep0[DEPTH_COL], rep0["Throughput"], color="#2c7bb6", lw=0.8)
+    ax.plot(rep0[depth_col], rep0["Throughput"], color="#2c7bb6", lw=0.8)
     ax.axhline(rep0["Throughput"].median(), color="gray", ls="--", lw=0.7, label=T["plot_throughput_median"])
     ax.set_xlabel(T["depth_axis"])
     ax.set_ylabel("Throughput")
@@ -45,14 +46,14 @@ def plot_throughput(rep0, T):
     return fig
 
 
-def plot_rh(rep0, T):
+def plot_rh(rep0, T, depth_col=DEPTH_COL):
     fig, axes = plt.subplots(2, 1, figsize=(10, 5), sharex=True)
     for ax, col, title in zip(
         axes,
         ["Rh-La Area", "Rh-La-Inc Area"],
         [T["plot_rh1_title"], T["plot_rh2_title"]],
     ):
-        ax.plot(rep0[DEPTH_COL], rep0[col], lw=0.8)
+        ax.plot(rep0[depth_col], rep0[col], lw=0.8)
         ax.set_ylabel(col)
         ax.set_title(title)
     axes[-1].set_xlabel(T["depth_axis"])
@@ -60,10 +61,10 @@ def plot_rh(rep0, T):
     return fig
 
 
-def plot_rolling(rep0, T):
+def plot_rolling(rep0, T, depth_col=DEPTH_COL):
     fig, ax = plt.subplots(figsize=(10, 3))
-    ax.plot(rep0[DEPTH_COL], rep0["Rh-La-Inc Area"], lw=0.8, label=T["plot_rolling_original"])
-    ax.plot(rep0[DEPTH_COL], rep0["Rh-La-Inc Area_rolling"], lw=1.2, ls="--", label=T["plot_rolling_mean"])
+    ax.plot(rep0[depth_col], rep0["Rh-La-Inc Area"], lw=0.8, label=T["plot_rolling_original"])
+    ax.plot(rep0[depth_col], rep0["Rh-La-Inc Area_rolling"], lw=1.2, ls="--", label=T["plot_rolling_mean"])
     ax.set_xlabel(T["depth_axis"])
     ax.set_ylabel("Rh-La-Inc Area")
     ax.set_title(T["plot_rolling_title"])
@@ -83,16 +84,16 @@ def plot_pca(rep0, p95, p99, T):
     return fig
 
 
-def plot_qi(rep0, T):
+def plot_qi(rep0, T, depth_col=DEPTH_COL):
     c = rep0["QF"].map(QF_COLORS).fillna("#aaaaaa")
     qf_plot_pos = rep0["QF"].map(QF_PLOT_ORDER)
     fig, axes = plt.subplots(2, 1, figsize=(10, 5), sharex=True)
-    axes[0].bar(rep0[DEPTH_COL], rep0["QI"].fillna(0), color=c.values, width=8)
+    axes[0].bar(rep0[depth_col], rep0["QI"].fillna(0), color=c.values, width=8)
     axes[0].axhline(80, color="gray", ls="--", lw=0.7)
     axes[0].axhline(40, color="red", ls="--", lw=0.7)
     axes[0].set_ylabel(T["plot_qi_ylabel"])
     axes[0].set_title(T["plot_qi_title"])
-    axes[1].bar(rep0[DEPTH_COL], qf_plot_pos, color=c.values, width=8)
+    axes[1].bar(rep0[depth_col], qf_plot_pos, color=c.values, width=8)
     axes[1].set_yticks(list(QF_PLOT_ORDER.values()))
     axes[1].set_yticklabels(T["plot_qf_labels"])
     axes[1].set_xlabel(T["depth_axis"])
@@ -101,10 +102,10 @@ def plot_qi(rep0, T):
     return fig
 
 
-def plot_replicas(rep0, T):
+def plot_replicas(rep0, T, depth_col=DEPTH_COL):
     fig, ax = plt.subplots(figsize=(10, 3))
     valid = rep0.dropna(subset=["Mean_RPD"])
-    ax.bar(valid[DEPTH_COL], valid["Mean_RPD"], width=8, color="#9467bd", alpha=0.8)
+    ax.bar(valid[depth_col], valid["Mean_RPD"], width=8, color="#9467bd", alpha=0.8)
     ax.set_xlabel(T["depth_axis"])
     ax.set_ylabel(T["plot_replicas_ylabel"])
     ax.set_title(T["plot_replicas_title"])
@@ -141,6 +142,18 @@ lang_label = st.sidebar.selectbox(
 )
 lang = LANG_OPTIONS[lang_label]
 T = TEXTS[lang]
+
+DEPTH_DISPLAY_OPTIONS = {
+    T["depth_display_composite"]: DEPTH_COL,
+    T["depth_display_core"]: CORE_DEPTH_COL,
+}
+depth_display_label = st.sidebar.selectbox(
+    T["depth_display_label"],
+    options=list(DEPTH_DISPLAY_OPTIONS.keys()),
+    index=0,
+    help=T["depth_display_help"],
+)
+DEPTH_DISPLAY_COL = DEPTH_DISPLAY_OPTIONS[depth_display_label]
 
 strict_missing_data = st.sidebar.checkbox(
     T["strict_missing_label"],
@@ -218,16 +231,16 @@ tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
 ])
 
 with tab1:
-    st.pyplot(plot_throughput(rep0, T))
+    st.pyplot(plot_throughput(rep0, T, depth_col=DEPTH_DISPLAY_COL))
 
 with tab2:
-    st.pyplot(plot_rh(rep0, T))
+    st.pyplot(plot_rh(rep0, T, depth_col=DEPTH_DISPLAY_COL))
 
 with tab3:
-    st.pyplot(plot_rolling(rep0, T))
+    st.pyplot(plot_rolling(rep0, T, depth_col=DEPTH_DISPLAY_COL))
 
 with tab4:
-    st.pyplot(plot_replicas(rep0, T))
+    st.pyplot(plot_replicas(rep0, T, depth_col=DEPTH_DISPLAY_COL))
 
 with tab5:
     if rep0["Mahalanobis"].notna().any():
@@ -236,11 +249,12 @@ with tab5:
         st.info(T["pca_skipped_info"])
 
 with tab6:
-    st.pyplot(plot_qi(rep0, T))
+    st.pyplot(plot_qi(rep0, T, depth_col=DEPTH_DISPLAY_COL))
 
 # Tabela
 st.subheader(T["data_header"])
-st.dataframe(rep0, use_container_width=True)
+display_cols = [DEPTH_DISPLAY_COL] + [c for c in rep0.columns if c != DEPTH_DISPLAY_COL]
+st.dataframe(rep0[display_cols], use_container_width=True)
 
 # Download
 st.download_button(
