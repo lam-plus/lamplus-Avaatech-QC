@@ -14,6 +14,8 @@ from sklearn.preprocessing import StandardScaler
 from sklearn.decomposition import PCA
 from scipy.spatial.distance import mahalanobis
 
+from i18n import CHECK_MESSAGES
+
 # ============================================================
 # CONFIGURAÇÕES
 # ============================================================
@@ -83,9 +85,12 @@ def calculate_rpd(values):
 # CHECK DE CONSISTÊNCIA
 # ============================================================
 
-def check_file(df):
+def check_file(df, lang="pt"):
     """
     Valida estrutura do DataFrame antes de rodar o pipeline.
+
+    Args:
+        lang: "pt" ou "en" — idioma das mensagens retornadas.
 
     Retorna:
         errors   : list[str] — erros que bloqueiam a execução
@@ -94,32 +99,35 @@ def check_file(df):
     errors = []
     warnings = []
 
+    def msg(key, **kwargs):
+        return CHECK_MESSAGES[key][lang].format(**kwargs)
+
     missing = [c for c in REQUIRED_COLUMNS if c not in df.columns]
     if missing:
-        errors.append(f"Colunas obrigatórias ausentes: {missing}")
+        errors.append(msg("missing_columns", cols=missing))
 
     if REPLICATE_COL in df.columns:
         if "Rep0" not in df[REPLICATE_COL].values:
-            errors.append(f"Nenhuma linha com '{REPLICATE_COL}' == 'Rep0' encontrada.")
+            errors.append(msg("missing_rep0", col=REPLICATE_COL))
 
     missing_pca = [e for e in ELEMENTS_PCA if e not in df.columns]
     if missing_pca:
-        warnings.append(f"Elementos PCA ausentes (serão ignorados): {missing_pca}")
+        warnings.append(msg("missing_pca", els=missing_pca))
 
     missing_rep = [e for e in ELEMENTS_REPLICATES if e not in df.columns]
     if missing_rep:
-        warnings.append(f"Elementos de réplica ausentes (RPD parcial): {missing_rep}")
+        warnings.append(msg("missing_rep", els=missing_rep))
 
     if "Throughput" in df.columns:
         n_zero = (df["Throughput"].fillna(0) == 0).sum()
         if n_zero > 0:
-            warnings.append(f"{n_zero} linhas com Throughput zero ou nulo.")
+            warnings.append(msg("zero_throughput", n=n_zero))
 
     if DEPTH_COL in df.columns and REPLICATE_COL in df.columns:
         rep0 = df[df[REPLICATE_COL] == "Rep0"]
         dup = rep0[DEPTH_COL].duplicated().sum()
         if dup > 0:
-            warnings.append(f"{dup} profundidades duplicadas em Rep0.")
+            warnings.append(msg("dup_depths", n=dup))
 
     return errors, warnings
 

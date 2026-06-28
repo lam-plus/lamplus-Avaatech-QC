@@ -5,3 +5,5 @@ scikit-learn
 streamlit
 openpyxl
 matplotlib
+Pillow
+pywin32; sys_platform == "win32"  # apenas Windows (setup_shortcut.py)
