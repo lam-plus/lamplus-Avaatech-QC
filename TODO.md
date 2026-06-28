@@ -123,6 +123,32 @@ Estes dois itens não são hipóteses — foram reproduzidos rodando `run_qc()` 
 
 ---
 
+## 8. Funcionalidades planejadas (ainda não implementadas)
+
+Itens combinados com o usuário mas que ainda não foram codificados — registrados aqui para não se perderem entre sessões.
+
+### 8.1 Exportação de relatório em PDF por testemunho
+
+Hoje a única saída além da tela é o `.xlsx` (`to_excel_bytes`, `qc_avaatech.py`), com todas as linhas `Rep0` misturadas, sem distinção por testemunho. Plano combinado em 2026-06-28 (não implementado):
+
+- **Granularidade:** agrupar por **testemunho**, não por valor exato de `Spectrum`. `Spectrum` mistura nome do testemunho + seção (ex. `"lontra-T01"`..`"lontra-T06"` são 6 seções de **um** testemunho "lontra", com profundidades compostas contínuas) — confirmado no arquivo de exemplo. Precisa de uma função (`qc_core.py`) que extraia o nome do testemunho a partir do prefixo de `Spectrum` (ex. regex `^(.+?)-T\d+$`, com fallback para o próprio `Spectrum` se não casar o padrão) e agrupe as seções antes de gerar o PDF.
+- **Biblioteca:** `matplotlib.backends.backend_pdf.PdfPages` — zero dependência nova (matplotlib já está no `requirements.txt`), reaproveita os `plot_*()` já existentes como páginas do PDF.
+- **Conteúdo do PDF:** capa (logo, nome do testemunho, profundidade composta, nº de medições, data/hora, modos de QC usados — `strict_missing_data`/`combine_rolling_vars`, para reprodutibilidade) + uma página por gráfico de diagnóstico + uma página de tabela só com linhas `QF` ∈ {2, 3, ND}.
+- **UI:** seletor de testemunho + opção "Todos" (gera `.zip` com um PDF por testemunho), botão de download ao lado do `.xlsx`, geração só no clique.
+- Módulo novo sugerido: `report_pdf.py`, separado de `qc_core.py` (que deve continuar sem dependência de relatório/UI) e de `qc_avaatech.py`.
+
+### 8.2 Campo "Operador" no formulário da UI
+
+Pedido em 2026-06-28: adicionar um campo de texto na interface (`qc_avaatech.py`, ex. na sidebar, próximo aos checkboxes de QC) para o usuário informar o **nome do operador** responsável pela análise. Esse valor deve aparecer na capa do relatório PDF (item 8.1) para rastreabilidade — quem rodou o QC e gerou aquele relatório específico.
+
+### 8.3 Campo "Comentários/Observações" no formulário da UI
+
+Pedido em 2026-06-28: adicionar um campo de texto livre (ex. `st.text_area`) onde o operador possa registrar observações sobre a sessão de QC (condições da medição, ressalvas, contexto da amostra, etc.). O conteúdo desse campo também deve ser incluído no relatório PDF (item 8.1), provavelmente na página de capa ou numa página dedicada de observações.
+
+Ambos os campos (8.2/8.3) são só para compor o PDF — não alteram o cálculo do QC em si, e precisam de chaves novas em `locales/pt.json`/`en.json` (label dos campos, placeholder, texto do cabeçalho no PDF).
+
+---
+
 ## Resumo de prioridade sugerida
 
 1. ~~**C1**~~ e ~~**C2**~~ ✅ ambos resolvidos (2026-06-28) — os dois riscos de integridade científica dos resultados (réplicas não casadas e dado faltante mascarado como "OK") estão corrigidos e validados contra dados reais.
