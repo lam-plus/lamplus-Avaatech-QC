@@ -305,7 +305,7 @@ def qc_pca(rep0):
 # SCORES
 # ============================================================
 
-def compute_scores(rep0, strict_missing_data=True, combine_rolling_vars=True):
+def compute_scores(rep0, strict_missing_data=True, combine_rolling_vars=False):
     """
     Calcula scores individuais e Quality Index (QI).
 
@@ -316,11 +316,15 @@ def compute_scores(rep0, strict_missing_data=True, combine_rolling_vars=True):
             disponíveis, redistribuindo os pesos entre eles. Em ambos os
             casos a linha é sinalizada como indeterminada em compute_flags;
             o que muda é apenas se o QI fica indefinido ou aproximado.
-        combine_rolling_vars: se True (padrão), o QC4 usa o maior |z-score|
-            de deriva entre as ROLLING_VARS (Throughput, Rh-Lα, Rh-Lα-Inc) —
-            um problema físico de medição tende a aparecer em pelo menos uma
-            das três. Se False, mantém o comportamento legado: só Rh-Lα-Inc.
-            O valor efetivamente usado fica em rep0["Rolling_z"].
+        combine_rolling_vars: se False (padrão), o QC4 considera apenas
+            Rh-Lα-Inc — é o dado espectral real medido; Throughput e Rh-Lα
+            são parâmetros instrumentais secundários. Se True, usa o maior
+            |z-score| de deriva entre as ROLLING_VARS (Throughput, Rh-Lα,
+            Rh-Lα-Inc) — um problema físico de medição tende a aparecer em
+            pelo menos uma das três, então combinar amplia a sensibilidade
+            às custas de poder reagir a deriva instrumental não relacionada
+            ao dado espectral. O valor efetivamente usado fica em
+            rep0["Rolling_z"].
     """
     rep0 = rep0.copy()
 
@@ -482,13 +486,13 @@ def add_pointwise_flag_notes(rep0, lang="pt"):
 # PIPELINE COMPLETO
 # ============================================================
 
-def run_qc(df, strict_missing_data=True, combine_rolling_vars=True):
+def run_qc(df, strict_missing_data=True, combine_rolling_vars=False):
     """
     Executa o pipeline QC completo sobre o DataFrame bruto.
 
     Args:
         strict_missing_data: ver compute_scores. Padrão True (conservador).
-        combine_rolling_vars: ver compute_scores. Padrão True.
+        combine_rolling_vars: ver compute_scores. Padrão False (só Rh-Lα-Inc).
 
     Retorna:
         rep0         : DataFrame com todos os campos QC calculados

@@ -20,7 +20,7 @@
   "strict_missing_label": "Strict mode for missing data",
   "strict_missing_help": "When enabled (default), a row missing Throughput, Rh-Lα, or Rh-Lα-Inc has its Quality Index (QI) marked as indeterminate. When disabled, the QI is recalculated using only the available modules, redistributing the weights. In both modes the row is still flagged as indeterminate (QF=ND) — never as OK.",
   "combine_rolling_label": "Combine the 3 variables in Rolling QC (QC4)",
-  "combine_rolling_help": "When enabled (default), QC4 uses the largest drift deviation (|z-score|) among Throughput, Rh-Lα, and Rh-Lα-Inc — a physical measurement issue (crack, air gap, dry/wet transition) tends to show up in at least one of the three. When disabled, keeps the legacy behavior: Rh-Lα-Inc only.",
+  "combine_rolling_help": "When disabled (default), QC4 only considers Rh-Lα-Inc — the actual spectral data measured; Throughput and Rh-Lα are secondary instrumental parameters. When enabled, it uses the largest drift deviation (|z-score|) among Throughput, Rh-Lα, and Rh-Lα-Inc — a physical measurement issue (crack, air gap, dry/wet transition) tends to show up in at least one of the three, widening sensitivity.",
   "depth_display_label": "Displayed depth column",
   "depth_display_composite": "Composite depth (CompositeDepth)",
   "depth_display_core": "Core depth (CoreDepth)",

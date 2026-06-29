@@ -20,7 +20,7 @@
   "strict_missing_label": "Modo restritivo para dados faltantes",
   "strict_missing_help": "Quando ativado (padrão), uma linha com Throughput, Rh-Lα ou Rh-Lα-Inc faltante tem o Quality Index (QI) marcado como indeterminado. Quando desativado, o QI é recalculado só com os módulos disponíveis, redistribuindo os pesos. Em ambos os modos a linha continua sinalizada como indeterminada (QF=ND) — nunca como OK.",
   "combine_rolling_label": "Combinar as 3 variáveis no Rolling QC (QC4)",
-  "combine_rolling_help": "Quando ativado (padrão), o QC4 usa o maior desvio (|z-score|) de deriva entre Throughput, Rh-Lα e Rh-Lα-Inc — um problema físico de medição (rachadura, bolha de ar, transição seco/úmido) tende a aparecer em pelo menos uma das três. Quando desativado, mantém o comportamento legado: considera só Rh-Lα-Inc.",
+  "combine_rolling_help": "Quando desativado (padrão), o QC4 considera apenas Rh-Lα-Inc — é o dado espectral real medido; Throughput e Rh-Lα são parâmetros instrumentais secundários. Quando ativado, usa o maior desvio (|z-score|) de deriva entre Throughput, Rh-Lα e Rh-Lα-Inc — um problema físico de medição (rachadura, bolha de ar, transição seco/úmido) tende a aparecer em pelo menos uma das três, ampliando a sensibilidade.",
   "depth_display_label": "Coluna de profundidade exibida",
   "depth_display_composite": "Profundidade composta (CompositeDepth)",
   "depth_display_core": "Profundidade no núcleo (CoreDepth)",

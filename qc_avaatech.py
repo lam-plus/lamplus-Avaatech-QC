@@ -162,7 +162,7 @@ strict_missing_data = st.sidebar.checkbox(
 )
 combine_rolling_vars = st.sidebar.checkbox(
     T["combine_rolling_label"],
-    value=True,
+    value=False,
     help=T["combine_rolling_help"],
 )
 
