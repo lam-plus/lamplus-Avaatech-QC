@@ -7,3 +7,5 @@ openpyxl
 matplotlib
 Pillow
 pywin32; sys_platform == "win32"  # apenas Windows (setup_shortcut.py)
+
+# pyinstaller  # dependência só de build (installer/build_exe.py) — descomente para gerar o executável

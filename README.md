@@ -11,6 +11,10 @@ Universidade Federal Fluminense (UFF)
 
 This tool implements a multi-module QC pipeline for XRF core scanner data produced by the Avaatech system. It provides an interactive web interface for uploading raw scan data, running automated quality control checks, visualizing diagnostics, and downloading the annotated output.
 
+## Validation Status
+
+This pipeline must be validated internally by the LAM+ team — cross-checked against known reference cores and manually-reviewed datasets (starting with the example file in `data/`) — **before being used to QC data from external clients**. The thresholds, weights, and default module configuration described in this document reflect engineering decisions made during development; they have not yet been validated against an independent ground-truth dataset.
+
 ## Modules
 
 | Module | Method | Target |
@@ -22,7 +26,7 @@ This tool implements a multi-module QC pipeline for XRF core scanner data produc
 | QC5 | Mean RPD | Replicate measurements |
 | QC6 | PCA + Mahalanobis distance | Multivariate geochemistry |
 
-Each module contributes to a weighted **Quality Index (QI)** and a **Quality Flag (QF)** per measurement point.
+Each module contributes to a weighted **Quality Index (QI)** and a **Quality Flag (QF)** per measurement point, with two configurable exceptions described below: QC4's variable set (default Rh-Lα-Inc only) and QC6's inclusion in QI/QF (default excluded, diagnostic-only).
 
 ### About QC4 (Rolling QC)
 
@@ -32,10 +36,23 @@ Throughput, Rh-Lα, and Rh-Lα-Inc are not chemical concentrations — they are 
 
 The sidebar also has a checkbox to **combine all three variables** instead. A physical measurement issue (a crack, an air gap, a dry/wet transition, detector drift) tends to disturb **at least one** of the three simultaneously, since all depend on the same measurement geometry/matrix at that point. When enabled, QC4 takes the **largest** absolute rolling z-score (`|delta_z|`) among the three — rather than the mean, which would dilute a real, localized disturbance that may only show up strongly in one of them — at the cost of also reacting to instrumental drift that isn't necessarily reflected in the spectral signal itself.
 
+### About QC6 (PCA)
+
+PCA (QC6) is an **exploratory diagnostic module**, not an automated-flagging criterion by default. It is always calculated and shown in the PCA tab — projecting the available trace elements (`ELEMENTS_PCA`) onto two principal components and computing the Mahalanobis distance of each measurement to the group center — regardless of any setting.
+
+**By default**, PCA does **not** contribute to the QI or QF: it stays purely visual/exploratory, useful for spotting geochemical groupings or multivariate anomalies without those observations driving automated rejection. A sidebar checkbox lets PCA be included in the QF criterion instead — re-adding its 5% QI weight and a direct Mahalanobis-distance threshold check (QF=2/3 on multivariate outliers) — for users who want multivariate anomalies to also drive automated flagging.
+
 ## Roadmap (planned — not yet implemented)
 
-- **PCA (QC6) as diagnostic-only**: PCA + Mahalanobis distance is always calculated and shown in the PCA diagnostic tab regardless of any setting. Today it is also always included in the QF criteria (5% of the QI weight). A planned sidebar checkbox would let PCA stay purely diagnostic — visible, but excluded from the QF decision.
+- **PCA biplot and clustering**: the PCA tab currently shows a PC1/PC2 scatter colored by Mahalanobis distance. Planned additions: loading vectors (biplot) showing which elements drive each principal component, and clustering (e.g. k-means) to group measurements geochemically. Purely visual/exploratory, same as the rest of QC6 — not tied to QF.
 - **QF mode selector**: QF is currently computed by a single rule (weighted QI thresholds combined with per-module z-score/Mahalanobis criteria — see `compute_flags` in `qc_core.py`). A planned alternative mode would compute QF from a simple count of failed modules instead of the weighted QI, as a more transparent, less compensatory criterion. The current weighted-QI mode would remain the default; the module-count mode would be opt-in.
+- **AI-based gap filling for isolated QF=3 measurements**: for isolated rejected points (a single QF=3 measurement surrounded by otherwise acceptable data, not part of a larger problem interval — see `report_pdf.detect_intervals`), a future module could estimate a plausible replacement value from neighboring valid measurements, rather than leaving a gap or naively interpolating. Suggested methods-section text:
+
+  > *"Isolated QF=3 measurements (rejected points not part of a contiguous problem interval) were estimated using [model] trained on neighboring valid measurements within a depth window of ±N mm, with [predictor variables] as features. Estimated values are explicitly flagged as imputed and are not used to validate the model itself, which was assessed via leave-one-out cross-validation against known-good measurements."*
+
+  Any such replacement must always be clearly flagged as imputed/estimated, never indistinguishable from a real measurement, and should only ever apply to truly isolated single points — not to multi-point problem intervals.
+- **Core image integration**: align core-scan photographs (e.g. line-scan camera images, typically captured alongside the XRF scan) by depth, so QC flags and problem intervals can be visually cross-checked against the physical appearance of the core (cracks, lithological changes, color banding) — in both the Streamlit app and the PDF report.
+- **Full XRF processor (future umbrella)**: longer-term, this QC pipeline could become one stage of a broader XRF data processing tool covering calibration, unit conversion, multi-core stitching, and export to standard paleoclimate/sedimentology data formats, with this QC module as its quality-gating step.
 
 ## Files
 

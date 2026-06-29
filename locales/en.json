@@ -21,6 +21,8 @@
   "strict_missing_help": "When enabled (default), a row missing Throughput, Rh-Lα, or Rh-Lα-Inc has its Quality Index (QI) marked as indeterminate. When disabled, the QI is recalculated using only the available modules, redistributing the weights. In both modes the row is still flagged as indeterminate (QF=ND) — never as OK.",
   "combine_rolling_label": "Combine the 3 variables in Rolling QC (QC4)",
   "combine_rolling_help": "When disabled (default), QC4 only considers Rh-Lα-Inc — the actual spectral data measured; Throughput and Rh-Lα are secondary instrumental parameters. When enabled, it uses the largest drift deviation (|z-score|) among Throughput, Rh-Lα, and Rh-Lα-Inc — a physical measurement issue (crack, air gap, dry/wet transition) tends to show up in at least one of the three, widening sensitivity.",
+  "include_pca_qf_label": "Include PCA in the QF criterion",
+  "include_pca_qf_help": "When disabled (default), PCA (QC6) is always calculated and shown normally in the diagnostic tab, but does not contribute to the QI or QF — it stays purely exploratory. When enabled, the Mahalanobis distance contributes to the QI again (5% weight) and can trigger QF=2/3 on multivariate outliers.",
   "depth_display_label": "Displayed depth column",
   "depth_display_composite": "Composite depth (CompositeDepth)",
   "depth_display_core": "Core depth (CoreDepth)",

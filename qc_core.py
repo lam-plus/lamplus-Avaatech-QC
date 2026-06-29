@@ -305,7 +305,7 @@ def qc_pca(rep0):
 # SCORES
 # ============================================================
 
-def compute_scores(rep0, strict_missing_data=True, combine_rolling_vars=False):
+def compute_scores(rep0, strict_missing_data=True, combine_rolling_vars=False, include_pca_in_qf=False):
     """
     Calcula scores individuais e Quality Index (QI).
 
@@ -325,6 +325,14 @@ def compute_scores(rep0, strict_missing_data=True, combine_rolling_vars=False):
             às custas de poder reagir a deriva instrumental não relacionada
             ao dado espectral. O valor efetivamente usado fica em
             rep0["Rolling_z"].
+        include_pca_in_qf: se False (padrão), Score_PCA continua sempre
+            calculado (PCA permanece um módulo de diagnóstico exploratório,
+            sempre visível na aba correspondente), mas é excluído do QI —
+            o peso de QI_WEIGHTS["Score_PCA"] é redistribuído entre os
+            demais módulos, renormalizado para somar 1.0. Se True, volta a
+            entrar no QI com seu peso nominal (5%). Ver também compute_flags:
+            o critério pontual de Mahalanobis (QF=2/3 por anomalia
+            multivariada) é igualmente desligado quando False.
     """
     rep0 = rep0.copy()
 
@@ -364,8 +372,14 @@ def compute_scores(rep0, strict_missing_data=True, combine_rolling_vars=False):
         p95 = p99 = np.nan
         rep0["Score_PCA"] = 100
 
-    score_cols = list(QI_WEIGHTS.keys())
-    weights = np.array(list(QI_WEIGHTS.values()))
+    active_weights = dict(QI_WEIGHTS)
+    if not include_pca_in_qf:
+        active_weights.pop("Score_PCA")
+        total_weight = sum(active_weights.values())
+        active_weights = {k: v / total_weight for k, v in active_weights.items()}
+
+    score_cols = list(active_weights.keys())
+    weights = np.array(list(active_weights.values()))
     scores = rep0[score_cols].to_numpy(dtype=float)
 
     if strict_missing_data:
@@ -384,13 +398,18 @@ def compute_scores(rep0, strict_missing_data=True, combine_rolling_vars=False):
 # QUALITY FLAG
 # ============================================================
 
-def compute_flags(rep0, p95, p99):
+def compute_flags(rep0, p95, p99, include_pca_in_qf=False):
     """
     Atribui Quality Flag (QF): 0=OK, 1=Atenção, 2=Suspeito, 3=Rejeitado,
     QF_INDETERMINATE (9)=indeterminado (dado crítico faltante — ver
     CRITICAL_INPUT_COLS). Uma linha indeterminada nunca recebe 0-3: ou se
     sabe o suficiente para classificar, ou se marca como indeterminada —
     nunca se assume "OK" por omissão (ver TODO.md achado C2).
+
+    include_pca_in_qf: se False (padrão), o critério pontual de Mahalanobis
+        (anomalia multivariada) não contribui para QF — consistente com
+        Score_PCA também excluído do QI em compute_scores. PCA permanece um
+        módulo de diagnóstico exploratório, não um critério de flag.
 
     Também preenche rep0["QF_Causes"]: string com os códigos de causa
     (CAUSE_*) que dispararam o flag daquela linha, separados por ";" — vazia
@@ -423,11 +442,12 @@ def compute_flags(rep0, p95, p99):
         if row["Rolling_z"] > 2:
             qf = max(qf, 2)
             row_causes.append(CAUSE_ROLLING)
-        if row["Mahalanobis"] > p95:
-            qf = max(qf, 2)
-            row_causes.append(CAUSE_PCA)
-        if row["Mahalanobis"] > p99:
-            qf = 3
+        if include_pca_in_qf:
+            if row["Mahalanobis"] > p95:
+                qf = max(qf, 2)
+                row_causes.append(CAUSE_PCA)
+            if row["Mahalanobis"] > p99:
+                qf = 3
         if row["QI"] < 40:
             qf = 3
             row_causes.append(CAUSE_QI_LOW)
@@ -486,13 +506,15 @@ def add_pointwise_flag_notes(rep0, lang="pt"):
 # PIPELINE COMPLETO
 # ============================================================
 
-def run_qc(df, strict_missing_data=True, combine_rolling_vars=False):
+def run_qc(df, strict_missing_data=True, combine_rolling_vars=False, include_pca_in_qf=False):
     """
     Executa o pipeline QC completo sobre o DataFrame bruto.
 
     Args:
         strict_missing_data: ver compute_scores. Padrão True (conservador).
         combine_rolling_vars: ver compute_scores. Padrão False (só Rh-Lα-Inc).
+        include_pca_in_qf: ver compute_scores/compute_flags. Padrão False
+            (PCA é só diagnóstico, não entra no QI/QF).
 
     Retorna:
         rep0         : DataFrame com todos os campos QC calculados
@@ -511,8 +533,11 @@ def run_qc(df, strict_missing_data=True, combine_rolling_vars=False):
     rep0 = qc_replicates(df, rep0)
     rep0, pca_elements = qc_pca(rep0)
     rep0, p95, p99 = compute_scores(
-        rep0, strict_missing_data=strict_missing_data, combine_rolling_vars=combine_rolling_vars
+        rep0,
+        strict_missing_data=strict_missing_data,
+        combine_rolling_vars=combine_rolling_vars,
+        include_pca_in_qf=include_pca_in_qf,
     )
-    rep0 = compute_flags(rep0, p95, p99)
+    rep0 = compute_flags(rep0, p95, p99, include_pca_in_qf=include_pca_in_qf)
 
     return rep0, p95, p99, pca_elements

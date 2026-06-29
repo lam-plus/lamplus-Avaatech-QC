@@ -165,6 +165,11 @@ combine_rolling_vars = st.sidebar.checkbox(
     value=False,
     help=T["combine_rolling_help"],
 )
+include_pca_in_qf = st.sidebar.checkbox(
+    T["include_pca_qf_label"],
+    value=False,
+    help=T["include_pca_qf_help"],
+)
 
 col_title, col_logo = st.columns([5, 1])
 with col_title:
@@ -205,7 +210,10 @@ if warnings:
 with st.spinner(T["qc_spinner"]):
     try:
         rep0, p95, p99, pca_elements = run_qc(
-            df_raw, strict_missing_data=strict_missing_data, combine_rolling_vars=combine_rolling_vars
+            df_raw,
+            strict_missing_data=strict_missing_data,
+            combine_rolling_vars=combine_rolling_vars,
+            include_pca_in_qf=include_pca_in_qf,
         )
         rep0 = add_pointwise_flag_notes(rep0, lang=lang)
     except Exception as e:

@@ -10,15 +10,19 @@ executa uma série de checagens estatísticas sobre as medidas em réplica
 - **QC1–QC3**: z-score robusto (baseado em MAD) sobre Throughput, Rh-Lα e
   Rh-Lα-Inc, para detectar outliers pontuais.
 - **QC4 — Rolling QC**: média móvel para detectar deriva local do sinal.
-- **QC5 — Réplicas**: RPD (Relative Percent Difference) médio entre réplicas
-  por profundidade, para um conjunto de elementos.
+- **QC5 — Réplicas**: RPD (Relative Percent Difference) médio entre réplicas,
+  casadas pela posição física de medição (Spectrum + CoreDepth), para um
+  conjunto de elementos.
 - **QC6 — PCA**: análise de componentes principais sobre os elementos
   selecionados, com distância de Mahalanobis para identificar amostras
-  anômalas no espaço multivariado.
+  anômalas no espaço multivariado. É sempre calculada como diagnóstico, mas
+  por padrão não entra no QI/QF (módulo exploratório, opt-in via checkbox).
 
 A partir desses módulos, o pipeline calcula um **Quality Index (QI)** — uma
-combinação ponderada dos scores individuais — e classifica cada medida em um
-**Quality Flag (QF)**: 0 (OK), 1 (Atenção), 2 (Suspeito) ou 3 (Rejeitado).
+combinação ponderada dos scores individuais disponíveis (por padrão, sem
+QC6) — e classifica cada medida em um **Quality Flag (QF)**: 0 (OK),
+1 (Atenção), 2 (Suspeito), 3 (Rejeitado) ou 9 (Indeterminado, quando falta
+dado crítico para avaliar a medição).
 
 O `qc_core.py` contém toda a lógica de cálculo (validação de estrutura do
 arquivo, estatísticas, scores e flags) e pode ser usado de forma independente

@@ -16,3 +16,10 @@ __pycache__/
 
 # Streamlit
 .streamlit/
+
+# PyInstaller build artifacts
+installer/dist/
+installer/build/
+installer/__pycache__/
+*.exe
+*.spec.bak
