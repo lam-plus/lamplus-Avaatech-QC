@@ -59,6 +59,7 @@ PCA (QC6) is an **exploratory diagnostic module**, not an automated-flagging cri
 - `qc_core.py` — QC pipeline (importable module)
 - `qc_avaatech.py` — Streamlit frontend
 - `requirements.txt` — Python dependencies
+- `installer/` — PyInstaller packaging (standalone executable), see below
 
 ## Usage
 
@@ -67,6 +68,32 @@ streamlit run qc_avaatech.py
 ```
 
 See `INSTALL.md` for environment setup instructions.
+
+## Standalone Executable
+
+The app can be packaged as a standalone executable (no Python/`.venv`
+required on the target machine) via [PyInstaller](https://pyinstaller.org/).
+Build scripts and the spec file live in `installer/`; full build
+instructions and known caveats are in `installer/README_BUILD.md`.
+
+```bash
+# Windows
+.venv\Scripts\python.exe -m pip install pyinstaller
+.venv\Scripts\python.exe installer\build_exe.py
+
+# Ubuntu
+.venv/bin/python -m pip install pyinstaller
+.venv/bin/python installer/build_exe.py
+```
+
+Tested end-to-end on Windows (2026-06-29): the build completes, the
+generated executable launches the Streamlit server correctly, and it
+responds on `localhost:8501`. Not yet tested on Ubuntu — PyInstaller does
+not cross-build, so each platform must generate its own executable.
+
+**The generated executable is never committed to this repository**
+(`installer/dist/` and `installer/build/` are gitignored). Distribute the
+built binary via **GitHub Releases**, not via git.
 
 ## Developers
 

@@ -37,3 +37,22 @@ tabela de resultados e exportar o resultado final em `.xlsx`.
 (`locales/pt.json` e `locales/en.json`), via o módulo `i18n.py`. **PT (Português)
 é o idioma padrão**; o usuário pode alternar para EN (English) através do
 seletor de idioma na sidebar do app Streamlit.
+
+## Empacotamento como executável (PyInstaller)
+
+**2026-06-29** — o app pode ser empacotado como executável standalone
+(Windows `.exe` / binário Linux), sem exigir Python ou o `.venv` instalado na
+máquina de destino. Todo o sistema de build vive em `installer/`:
+`launcher.py` (entry point real — invoca o Streamlit CLI apontando para
+`qc_avaatech.py`, já que um script Streamlit não pode ser o entry point do
+PyInstaller diretamente), `lamplus_qc.spec` (spec file, cobre as
+dependências dinâmicas de `streamlit`/`scipy`/`sklearn`/`matplotlib` e
+empacota `locales/`/`assets/`/os módulos do projeto) e `build_exe.py`
+(roda o PyInstaller com os parâmetros certos). Instruções completas e
+avisos conhecidos em `installer/README_BUILD.md`.
+
+O build foi gerado e testado de ponta a ponta no Windows em 2026-06-29
+(executável onefile de ~150MB, servidor Streamlit sobe e responde
+normalmente). Ainda não testado no Ubuntu. **O executável gerado nunca é
+versionado no repositório** (`installer/dist/`/`installer/build/` estão no
+`.gitignore`) — a distribuição é feita via **GitHub Releases**.

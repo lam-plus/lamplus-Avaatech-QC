@@ -25,7 +25,13 @@ assets/
   lamplus_logo.ico       # Gerado por setup_shortcut.py (não editar manualmente)
 data/
   exemplo_dados_consolidados.xlsx   # Arquivo de exemplo real, usado para testes manuais
-requirements.txt        # Dependências Python (pywin32 só Windows via marker de ambiente)
+installer/               # Empacotamento como executável standalone (PyInstaller) — ver seção própria abaixo
+  launcher.py            # Entry point real do PyInstaller — invoca o Streamlit CLI apontando para a cópia empacotada de qc_avaatech.py
+  lamplus_qc.spec        # Spec file: collect_all (streamlit/scipy/sklearn/matplotlib), datas (qc_*.py/i18n.py/locales//assets/), ícone lamplus_logo.ico
+  build_exe.py           # Roda o PyInstaller com os parâmetros corretos, em Windows e Ubuntu
+  README_BUILD.md        # Como gerar o executável + avisos/limitações conhecidas
+  dist/, build/          # Gerados pelo build — gitignored, NUNCA versionar o .exe (distribuir via GitHub Releases)
+requirements.txt        # Dependências Python (pywin32 só Windows via marker de ambiente; pyinstaller comentado, só build)
 README.md               # Overview do projeto (inglês, "público")
 DEVELOPMENT.md          # Explicação do app + notas de decisões datadas (ex. i18n)
 INSTALL.md              # Guia de instalação para Ubuntu
@@ -102,6 +108,19 @@ Cria atalho de desktop, com lógica por SO em `main()`:
 
 Roda só quando o usuário pede explicitamente — **não execute este script automaticamente**, pois ele cria/altera arquivos fora do repositório (Desktop do usuário). Sempre confirme antes de rodar de fato (já houve confirmação explícita pedida em sessões anteriores).
 
+### `installer/` — empacotamento como executável standalone (PyInstaller)
+
+Criado em 2026-06-29 para distribuir o app sem exigir Python/`.venv` na máquina de destino. `qc_avaatech.py` é um script Streamlit (roda via `streamlit run`, não como script Python comum), então o entry point do PyInstaller não pode ser ele direto:
+
+- `launcher.py` — entry point real. Invoca `streamlit.web.cli` programaticamente, apontando para a cópia de `qc_avaatech.py` empacotada (resolve o caminho via `sys._MEIPASS` quando "frozen"). Desliga o file watcher do Streamlit (`--server.fileWatcherType=none`) — não há "arquivo-fonte" a vigiar num executável congelado, e o watcher tem uma race condition conhecida que aparece em alguns ambientes.
+- `lamplus_qc.spec` — como o launcher nunca importa `qc_avaatech.py`/`qc_core.py` diretamente (só manda o Streamlit rodar o arquivo por caminho), a análise estática do PyInstaller não vê os imports desses módulos (pandas, numpy, sklearn, scipy, matplotlib, openpyxl, PIL) — por isso ficam em `hiddenimports`, e `collect_all()` traz datas/binaries/hiddenimports de `streamlit`/`scipy`/`sklearn`/`matplotlib` (libs com submódulos/assets carregados dinamicamente). Copia `qc_avaatech.py`, `qc_core.py`, `report_pdf.py`, `i18n.py`, `locales/` e `assets/` como dados brutos, espelhando a estrutura relativa do repo — por isso os caminhos baseados em `__file__` em `qc_avaatech.py`/`i18n.py` funcionam sem nenhuma alteração no código da aplicação. Ícone: `assets/lamplus_logo.ico`. Também localiza e inclui (via `sys.base_prefix`) DLLs nativas que instalações conda/miniforge no Windows guardam em `Library/bin/` em vez de `DLLs/` (`ffi-8.dll`, tcl/tk, sqlite3, bz2, expat) — sem isso o executável falha em runtime com `DLL load failed... _ctypes`; em Python "oficial" (python.org) esse bloco não encontra nada e não tem efeito.
+- `build_exe.py` — detecta SO, usa o Python do `.venv`, roda `python -m PyInstaller installer/lamplus_qc.spec` com os parâmetros corretos (`--distpath`/`--workpath` dentro de `installer/`).
+- `README_BUILD.md` — instruções de build Windows/Ubuntu e avisos conhecidos.
+
+**Validado de ponta a ponta no Windows em 2026-06-29:** build completo executado (executável onefile, ~150MB em `installer/dist/LAM_Core_QC.exe`), executável rodado de fato — servidor Streamlit sobe e responde HTTP 200 em `localhost:8501`, sem erros no log. **Não testado no Ubuntu ainda** (sem ambiente disponível na sessão em que foi criado) — PyInstaller não faz cross-build, então cada plataforma precisa gerar seu próprio executável rodando `build_exe.py` localmente.
+
+**O `.exe` gerado nunca é commitado no repositório** — `installer/dist/` e `installer/build/` estão no `.gitignore` (junto com `*.exe` e `*.spec.bak`, mais genéricos). Distribuição do executável é via **GitHub Releases** (anexar o binário gerado a um release), não via git.
+
 ## Convenções adotadas
 
 - **Comentários, docstrings e mensagens de commit em Português**; identificadores de código (nomes de função/variável) em inglês. Strings de UI vivem nos `locales/*.json`, nunca hardcoded em `.py`.
@@ -114,6 +133,7 @@ Roda só quando o usuário pede explicitamente — **não execute este script au
 - Scripts utilitários (`iniciar.py`, `setup_shortcut.py`) detectam o SO via `platform.system()` e devem continuar funcionando em Windows **e** Ubuntu — qualquer mudança neles precisa considerar as duas plataformas.
 - Antes de declarar algo "corrigido" ou "implementado", valide executando contra `data/exemplo_dados_consolidados.xlsx` (dados reais, já revelou bugs que dados sintéticos não revelariam — ver `TODO.md` achado C1).
 - `TODO.md` é o registro vivo de bugs/gaps conhecidos e não corrigidos — consulte antes de assumir que algo é um problema novo, e atualize/remova entradas lá quando corrigidas.
+- **Nunca versionar o executável gerado** (`installer/dist/*.exe` ou equivalente Linux) — fica de fora do git via `.gitignore`. Distribuição é via **GitHub Releases**, anexando o binário ao release, não via commit.
 
 ## Permissões automáticas (.venv e arquivos do projeto)
 

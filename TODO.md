@@ -195,6 +195,18 @@ Pedido em 2026-06-28. Inicialmente registrado só como ideia de Roadmap no READM
 
 Pedido em 2026-06-28, registrado no README ("Roadmap") — **ainda não implementado**. Hoje só existe um algoritmo de `QF` (`compute_flags`: limiares de `QI` + critérios pontuais de z-score/Mahalanobis). A ideia é um segundo modo alternativo, baseado em contagem simples de módulos que "reprovaram" (em vez do QI ponderado) — um critério mais transparente e menos compensatório (hoje um módulo muito bom pode "compensar" outro ruim no QI agregado; contagem de reprovações não compensaria). Modo QI ponderado continuaria sendo o default; contagem de módulos seria opt-in.
 
+### 8.8 Empacotamento como executável standalone (PyInstaller) — ✅ implementado em 2026-06-29
+
+Pedido e implementado em 2026-06-29: diretório `installer/` empacota o app como executável standalone (Windows `.exe` / binário Linux), sem exigir Python/`.venv` na máquina de destino.
+
+- `installer/launcher.py` — entry point real do PyInstaller. `qc_avaatech.py` é um script Streamlit (roda via `streamlit run`, não como script Python comum), então não pode ser o entry point direto — o launcher invoca `streamlit.web.cli` programaticamente, apontando para a cópia de `qc_avaatech.py` empacotada. Desliga o file watcher do Streamlit (`--server.fileWatcherType=none`) — sem isso, apareceu em teste um `RuntimeError: dictionary changed size during iteration` (race condition conhecida do watcher); também não faz sentido vigiar arquivo-fonte num executável congelado.
+- `installer/lamplus_qc.spec` — usa `collect_all()` para `streamlit`/`scipy`/`sklearn`/`matplotlib` (dependências dinâmicas invisíveis à análise estática, já que o launcher nunca importa `qc_avaatech.py`/`qc_core.py` diretamente). Copia `qc_avaatech.py`, `qc_core.py`, `report_pdf.py`, `i18n.py`, `locales/` e `assets/` como dados brutos, espelhando a estrutura relativa do repo (por isso os caminhos via `__file__` em `qc_avaatech.py`/`i18n.py` funcionam sem alteração no código da aplicação). Ícone: `assets/lamplus_logo.ico`. **Bug real encontrado e corrigido durante a validação:** Python via conda/miniforge no Windows guarda DLLs nativas (`ffi-8.dll`, tcl/tk, sqlite3, bz2, expat) em `<python>/Library/bin/` em vez de `DLLs/`, onde o PyInstaller procura por padrão — o primeiro build gerava um `.exe` que crashava com `DLL load failed... _ctypes`. Corrigido localizando essas DLLs via `sys.base_prefix` no `.spec` (sem efeito em Python "oficial" do python.org).
+- `installer/build_exe.py` — detecta SO, usa o Python do `.venv`, roda o PyInstaller com os parâmetros corretos.
+- `installer/README_BUILD.md` — instruções de build Windows/Ubuntu + avisos conhecidos.
+- **`.gitignore`**: `installer/dist/`, `installer/build/`, `installer/__pycache__/`, `*.exe`, `*.spec.bak`. **`requirements.txt`**: `pyinstaller` comentado como dependência só de build.
+- **Validado de ponta a ponta no Windows em 2026-06-29:** build completo executado de fato (não só revisão de código) — executável onefile gerado (~150MB em `installer/dist/LAM_Core_QC.exe`), executado, servidor Streamlit sobe e responde HTTP 200 em `localhost:8501`, sem erros no log após a correção do file watcher e da DLL. **Não testado no Ubuntu** (sem ambiente disponível na sessão).
+- **O `.exe` gerado nunca é commitado** — distribuição é via **GitHub Releases**, não via git.
+
 ---
 
 ## Resumo de prioridade sugerida
@@ -203,4 +215,5 @@ Pedido em 2026-06-28, registrado no README ("Roadmap") — **ainda não implemen
 2. ~~**2.2** / **1.2** / **1.3**~~ ✅ resolvidos (2026-06-28) — QC6 (PCA) degrada graciosamente (score neutro + warning bilíngue) em vez de travar o pipeline quando faltam elementos/linhas; matriz de covariância usa `pinv`.
 3. ~~**4.1**~~ ✅ resolvido (2026-06-28) — QC4 considera só Rh-La-Inc Area por padrão (dado espectral real); combinar as três variáveis (máximo dos `\|delta_z\|`) é opt-in via checkbox. README atualizado.
 4. ~~**8.6**~~ ✅ resolvido (2026-06-28) — PCA (QC6) é só diagnóstico por padrão, não entra no QI/QF; checkbox opt-in reativa os dois caminhos (peso no QI + checagem direta de Mahalanobis em `compute_flags`). README atualizado ("About QC6").
-5. Demais itens são robustez/performance/qualidade incrementais, sem risco de resultado incorreto.
+5. ~~**8.8**~~ ✅ resolvido (2026-06-29) — empacotamento standalone via PyInstaller (`installer/`), testado de ponta a ponta no Windows; `.exe` nunca commitado, distribuição via GitHub Releases.
+6. Demais itens são robustez/performance/qualidade incrementais, sem risco de resultado incorreto.
