@@ -13,6 +13,7 @@ import os
 import streamlit as st
 import pandas as pd
 import matplotlib.pyplot as plt
+from openpyxl.styles import PatternFill
 
 from qc_core import (
     CORE_DEPTH_COL,
@@ -117,10 +118,53 @@ def plot_replicas(rep0, T, depth_col=DEPTH_COL):
 # EXPORT
 # ============================================================
 
-def to_excel_bytes(df):
+# Coloração por célula (protocolo v4.2, DEVELOPMENT.md — reports.py do
+# apêndice): verde=OK/QF0/"NO", amarelo=Atenção/QF1/"WARNING",
+# vermelho=Suspeito-Rejeitado/QF2-QF3/"CRITICAL"/"YES".
+QC_FILL_GREEN = PatternFill(fill_type="solid", start_color="C6EFCE", end_color="C6EFCE")
+QC_FILL_YELLOW = PatternFill(fill_type="solid", start_color="FFF2CC", end_color="FFF2CC")
+QC_FILL_RED = PatternFill(fill_type="solid", start_color="F4CCCC", end_color="F4CCCC")
+
+
+def _qc_cell_fill(value, is_qf_column):
+    """
+    Cor para uma célula de coluna QC, conforme protocolo v4.2. Os códigos
+    numéricos 0/1/2/3 só se aplicam à coluna QF: em colunas numéricas
+    contínuas (scores, z-scores, RPD) esses mesmos valores não indicam
+    severidade e coincidir com eles não deve disparar coloração.
+    """
+    if value in ("OK", "NO") or (is_qf_column and value == 0):
+        return QC_FILL_GREEN
+    if value == "WARNING" or (is_qf_column and value == 1):
+        return QC_FILL_YELLOW
+    if value in ("CRITICAL", "YES") or (is_qf_column and value in (2, 3)):
+        return QC_FILL_RED
+    return None
+
+
+def to_excel_bytes(df, original_columns=None):
+    """
+    Serializa df para .xlsx. Se original_columns for informado, aplica
+    coloração verde/amarelo/vermelho (via openpyxl.PatternFill) célula a
+    célula, restrita às colunas adicionadas pelo pipeline QC (ausentes de
+    original_columns) — nunca nas colunas originais do Avaatech.
+    """
     buf = io.BytesIO()
     with pd.ExcelWriter(buf, engine="openpyxl") as writer:
         df.to_excel(writer, index=False, sheet_name="LAM_CoreQC")
+
+        if original_columns is not None:
+            ws = writer.sheets["LAM_CoreQC"]
+            original_columns = set(original_columns)
+            for col_idx, col_name in enumerate(df.columns, start=1):
+                if col_name in original_columns:
+                    continue
+                is_qf_column = col_name == "QF"
+                for row_idx, value in enumerate(df[col_name], start=2):
+                    fill = _qc_cell_fill(value, is_qf_column)
+                    if fill is not None:
+                        ws.cell(row=row_idx, column=col_idx).fill = fill
+
     return buf.getvalue()
 
 
@@ -267,7 +311,7 @@ st.dataframe(rep0[display_cols], use_container_width=True)
 # Download
 st.download_button(
     label=T["download_label"],
-    data=to_excel_bytes(rep0),
+    data=to_excel_bytes(rep0, original_columns=df_raw.columns),
     file_name="LAM_CoreQC_Output.xlsx",
     mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
 )
