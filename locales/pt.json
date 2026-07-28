@@ -61,6 +61,7 @@
   "report_intervals_qf_max": "QF Máximo",
   "report_intervals_causes": "Causas",
   "cause_throughput": "Throughput",
+  "cause_argon": "Argônio (Ar-Kα)",
   "cause_rh_la": "Rh-Lα",
   "cause_rh_la_inc": "Rh-Lα-Inc",
   "cause_rolling": "Deriva (Rolling QC)",

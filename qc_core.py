@@ -32,10 +32,19 @@ ROLLING_WINDOW = 5
 # nome de coluna para outro propósito (casar réplicas) e não deve mudar.
 CORE_DEPTH_COL = "CoreDepth"
 
-# Variáveis usadas no QC4 (rolling). As três tendem a reagir juntas a um
-# mesmo problema físico de medição (rachadura, bolha de ar, transição
-# seco/úmido) — ver compute_scores/combine_rolling_vars.
-ROLLING_VARS = ["Throughput", "Rh-La Area", "Rh-La-Inc Area"]
+# Pico de Argônio — reflete a qualidade da atmosfera entre tubo, amostra e
+# detector (perda de hélio, entrada de ar, vedação). Só existe em modo 10 kV
+# (protocolo v4.2, seção 5/8); tratado como opcional, igual a ELEMENTS_PCA —
+# sua ausência nunca invalida QC1/QC4, só reduz ao comportamento anterior
+# (Throughput sozinho).
+ARGON_COL = "Ar-Ka Area"
+
+# Variáveis usadas no QC4 (rolling). As três originais tendem a reagir juntas
+# a um mesmo problema físico de medição (rachadura, bolha de ar, transição
+# seco/úmido) — ver compute_scores/combine_rolling_vars. Ar-Ka Area (Argônio)
+# entra como quarta variável opcional (qc_rolling ignora qualquer uma que não
+# esteja presente no arquivo).
+ROLLING_VARS = ["Throughput", "Rh-La Area", "Rh-La-Inc Area", ARGON_COL]
 
 # CompositeDepth (mm) só é preenchido na primeira passada (Rep0); em Rep1/Rep2
 # essa coluna vem nula. Spectrum + CoreDepth identificam a posição física de
@@ -115,6 +124,7 @@ QF_PLOT_ORDER = {0: 0, 1: 1, 2: 2, 3: 3, QF_INDETERMINATE: 4}
 # indeterminada). Usados por compute_flags (coluna QF_Causes) e traduzidos
 # na UI/relatório via locales/*.json (chave "cause_<código>").
 CAUSE_THROUGHPUT = "throughput"
+CAUSE_ARGON = "argon"
 CAUSE_RH_LA = "rh_la"
 CAUSE_RH_LA_INC = "rh_la_inc"
 CAUSE_ROLLING = "rolling"
@@ -215,9 +225,32 @@ def check_file(df, lang="pt"):
 # ============================================================
 
 def qc_throughput(rep0):
-    """QC1 — Z-score robusto do Throughput."""
+    """
+    QC1 — Instrument Stability: z-score robusto do Throughput, combinado com
+    o pico de Argônio quando presente no arquivo (protocolo v4.2, seção 5).
+
+    "Combinado" = pior dos dois: rep0["Instrument_z"] é o z-score (Throughput
+    ou Argônio) de maior magnitude absoluta linha a linha — um problema de
+    vedação/atmosfera pode aparecer só no Argônio, sem necessariamente
+    derrubar o Throughput, e vice-versa. rep0["Throughput_z"]/["Argon_z"]
+    continuam disponíveis individualmente (diagnóstico); Instrument_z é quem
+    alimenta Score_Throughput/compute_flags.
+    """
     rep0 = rep0.copy()
     rep0["Throughput_z"] = robust_zscore(rep0["Throughput"])
+
+    if ARGON_COL in rep0.columns:
+        rep0["Argon_z"] = robust_zscore(rep0[ARGON_COL])
+        abs_throughput = rep0["Throughput_z"].abs()
+        abs_argon = rep0["Argon_z"].abs()
+        # NaN nunca "vence" (fillna(-1) garante que um lado ausente não seja
+        # escolhido como o pior por engano).
+        argon_is_worse = abs_argon.fillna(-1) > abs_throughput.fillna(-1)
+        rep0["Instrument_z"] = np.where(argon_is_worse, rep0["Argon_z"], rep0["Throughput_z"])
+    else:
+        rep0["Argon_z"] = np.nan
+        rep0["Instrument_z"] = rep0["Throughput_z"]
+
     return rep0
 
 
@@ -236,9 +269,18 @@ def qc_rh_la_inc(rep0):
 
 
 def qc_rolling(rep0, window=ROLLING_WINDOW):
-    """QC4 — Rolling QC: detecta deriva local via média móvel."""
+    """
+    QC4 — Rolling QC: detecta deriva local via média móvel.
+
+    Itera ROLLING_VARS (Throughput, Rh-La Area, Rh-La-Inc Area, Ar-Ka Area);
+    uma variável ausente do arquivo (ex. Ar-Ka Area fora do modo 10 kV) é
+    simplesmente ignorada — mesmo padrão de degradação graciosa usado em
+    qc_pca/qc_replicates.
+    """
     rep0 = rep0.copy()
     for var in ROLLING_VARS:
+        if var not in rep0.columns:
+            continue
         roll = rep0[var].rolling(window=window, center=True, min_periods=1).mean()
         rep0[f"{var}_rolling"] = roll
         rep0[f"{var}_delta"] = rep0[var] - roll
@@ -320,14 +362,14 @@ def compute_scores(rep0, strict_missing_data=True, combine_rolling_vars=False, i
             casos a linha é sinalizada como indeterminada em compute_flags;
             o que muda é apenas se o QI fica indefinido ou aproximado.
         combine_rolling_vars: se False (padrão), o QC4 considera apenas
-            Rh-Lα-Inc — é o dado espectral real medido; Throughput e Rh-Lα
-            são parâmetros instrumentais secundários. Se True, usa o maior
-            |z-score| de deriva entre as ROLLING_VARS (Throughput, Rh-Lα,
-            Rh-Lα-Inc) — um problema físico de medição tende a aparecer em
-            pelo menos uma das três, então combinar amplia a sensibilidade
-            às custas de poder reagir a deriva instrumental não relacionada
-            ao dado espectral. O valor efetivamente usado fica em
-            rep0["Rolling_z"].
+            Rh-Lα-Inc — é o dado espectral real medido; Throughput, Rh-Lα e
+            Argônio são parâmetros instrumentais secundários. Se True, usa o
+            maior |z-score| de deriva entre as ROLLING_VARS presentes no
+            arquivo (Throughput, Rh-Lα, Rh-Lα-Inc, Ar-Ka Area) — um problema
+            físico de medição tende a aparecer em pelo menos uma delas, então
+            combinar amplia a sensibilidade às custas de poder reagir a
+            deriva instrumental não relacionada ao dado espectral. O valor
+            efetivamente usado fica em rep0["Rolling_z"].
         include_pca_in_qf: se False (padrão), Score_PCA continua sempre
             calculado (PCA permanece um módulo de diagnóstico exploratório,
             sempre visível na aba correspondente), mas é excluído do QI —
@@ -339,12 +381,12 @@ def compute_scores(rep0, strict_missing_data=True, combine_rolling_vars=False, i
     """
     rep0 = rep0.copy()
 
-    rep0["Score_Throughput"] = score_from_z(rep0["Throughput_z"])
+    rep0["Score_Throughput"] = score_from_z(rep0["Instrument_z"])
     rep0["Score_RhLa"] = score_from_z(rep0["RhLa_z"])
     rep0["Score_RhLaInc"] = score_from_z(rep0["RhLaInc_z"])
 
     if combine_rolling_vars:
-        delta_z_cols = [f"{v}_delta_z" for v in ROLLING_VARS]
+        delta_z_cols = [f"{v}_delta_z" for v in ROLLING_VARS if f"{v}_delta_z" in rep0.columns]
         rep0["Rolling_z"] = rep0[delta_z_cols].abs().max(axis=1)
     else:
         rep0["Rolling_z"] = rep0["Rh-La-Inc Area_delta_z"].abs()
@@ -432,8 +474,20 @@ def compute_flags(rep0, p95, p99, include_pca_in_qf=False):
 
         qf = 0
         row_causes = []
+
+        # QC1 — Instrument Stability (Throughput combinado com Argônio,
+        # pior dos dois; ver qc_throughput/Instrument_z).
+        if abs(row["Instrument_z"]) > 2:
+            qf = max(qf, 2)
+            argon_z = row["Argon_z"]
+            if pd.notna(argon_z) and abs(argon_z) > abs(row["Throughput_z"]):
+                row_causes.append(CAUSE_ARGON)
+            else:
+                row_causes.append(CAUSE_THROUGHPUT)
+        if abs(row["Instrument_z"]) > 3:
+            qf = 3
+
         for z_col, cause in [
-            ("Throughput_z", CAUSE_THROUGHPUT),
             ("RhLa_z", CAUSE_RH_LA),
             ("RhLaInc_z", CAUSE_RH_LA_INC),
         ]:

@@ -937,7 +937,7 @@ Comparação entre o protocolo acima e a implementação atual (`qc_core.py`/`qc
 
 #### 2. QC1 — Instrument Stability (Throughput + Argônio)
 
-**INCORPORAR** — v4.2 combina Throughput + `Ar-Ka Area` (pico de Argônio, indicador de perda de hélio/vedação) em 10 kV. O atual (`qc_throughput`, `qc_core.py:214`) usa só Throughput. A coluna `Ar-Ka Area` existe de fato no arquivo de exemplo (confirmado lendo o Excel) e está sendo desperdiçada.
+✅ **INCORPORADO em 2026-07-28** (`TODO.md`, seção 9, item b) — `qc_throughput` agora combina Throughput + `Ar-Ka Area` via `rep0["Instrument_z"]` (o pior dos dois z-scores, linha a linha); `ROLLING_VARS` (QC4) ganhou `Ar-Ka Area` como quarta variável opcional. Validado contra o arquivo de exemplo: distribuição de QF (default) passa de `{0:208, 2:45, 3:17}` para `{0:199, 1:1, 2:42, 3:28}`; sem regressão quando a coluna está ausente (fallback reproduz o baseline anterior). Detalhes completos em `TODO.md`.
 
 #### 3. QC2/QC3 — Coherent/Incoherent Scatter
 
@@ -991,7 +991,7 @@ A diferença mais profunda entre os dois documentos.
 |---|------|------|
 | 1 | Layout de arquivos (config/main/io_module/qc/reports/replicates) | **DESCARTAR** |
 | 2 | i18n, PCA diagnóstica, seletor de profundidade, PDF de intervalos | **MANTER** |
-| 3 | Argônio (Ar-Ka Area) em QC1 | **INCORPORAR** |
+| 3 | Argônio (Ar-Ka Area) em QC1 | ✅ **INCORPORADO (2026-07-28)** |
 | 4 | Nomenclatura "Coherent/Incoherent Scatter" como label | **INCORPORAR (leve)** |
 | 5 | Persistência temporal no QC4 (2 pontos consecutivos) | **MODIFICAR — discutir antes** (tensiona com decisão já tomada sobre flag pontual único) |
 | 6 | Combinar sempre as variáveis no rolling (sem opt-in) | **DESCARTAR** |
