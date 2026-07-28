@@ -25,6 +25,8 @@
   "include_pca_qf_help": "Quando desativado (padrão), a PCA (QC6) é sempre calculada e exibida normalmente na aba de diagnóstico, mas não contribui para o QI nem para o QF — fica puramente exploratória. Quando ativado, a distância de Mahalanobis volta a contribuir para o QI (5% do peso) e a disparar QF=2/3 em pontos anômalos no espaço multivariado.",
   "use_count_mode_label": "Modo de QF por contagem de módulos (protocolo v4.2)",
   "use_count_mode_help": "Quando desativado (padrão), o QF é definido pelo Quality Index (QI) ponderado — um módulo muito bom pode compensar outro ruim. Quando ativado, usa o critério alternativo do protocolo v4.2: cada módulo de QC vira um estado OK/ALERT/CRITICAL (limiares próprios, distintos do modo QI), e o QF final é uma contagem não compensatória — QF1 = 1 ALERT, QF2 = 2-3 ALERTs ou 1 CRITICAL, QF3 = 2+ CRITICALs ou 4+ ALERTs. O QI continua sendo calculado e exibido normalmente nos dois modos, só o critério que decide o QF muda. Linhas com dado crítico faltante continuam marcadas como indeterminadas (QF=ND) em ambos os modos.",
+  "rolling_persistence_label": "Exigir persistência temporal no Rolling QC (QC4)",
+  "rolling_persistence_help": "Quando desativado (padrão), qualquer ponto isolado com desvio de deriva acima do limiar já dispara o critério do QC4 (defesa em profundidade). Quando ativado, aplica a regra de persistência do protocolo v4.2: uma anomalia de deriva só é mantida se aparecer em pelo menos 2 pontos consecutivos ou 2 pontos dentro de uma janela de 3 medidas — anomalias isoladas são tratadas como ruído estatístico e não disparam o critério, reduzindo falsos positivos. Afeta o Score_Rolling e o critério de flag do QC4 nos dois modos de QF.",
   "depth_display_label": "Coluna de profundidade exibida",
   "depth_display_composite": "Profundidade composta (CompositeDepth)",
   "depth_display_core": "Profundidade no núcleo (CoreDepth)",
@@ -81,6 +83,7 @@
     "pca_too_few_rows": "PCA (QC6) não poderá ser calculada: apenas {n} linha(s) Rep0 (mínimo necessário: {min}). O Score_PCA será neutro (100) e os demais módulos de QC continuam normalmente.",
     "missing_rep": "Elementos de réplica ausentes (RPD parcial): {els}",
     "zero_throughput": "{n} linhas com Throughput zero ou nulo.",
-    "dup_depths": "{n} profundidades duplicadas em Rep0."
+    "dup_depths": "{n} profundidades duplicadas em Rep0.",
+    "depth_col_fallback": "Coluna 'CompositeDepth (mm)' ausente neste arquivo; usando '{col}' como substituto para a profundidade contínua ao longo do testemunho. Válido apenas se o arquivo tiver uma única seção — com múltiplas seções, '{col}' reinicia a cada seção e pode gerar profundidades/intervalos incorretos nas transições."
   }
 }

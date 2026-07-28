@@ -219,6 +219,11 @@ use_count_mode = st.sidebar.checkbox(
     value=False,
     help=T["use_count_mode_help"],
 )
+use_rolling_persistence = st.sidebar.checkbox(
+    T["rolling_persistence_label"],
+    value=False,
+    help=T["rolling_persistence_help"],
+)
 
 col_title, col_logo = st.columns([5, 1])
 with col_title:
@@ -264,6 +269,7 @@ with st.spinner(T["qc_spinner"]):
             combine_rolling_vars=combine_rolling_vars,
             include_pca_in_qf=include_pca_in_qf,
             use_count_mode=use_count_mode,
+            use_rolling_persistence=use_rolling_persistence,
         )
         rep0 = add_pointwise_flag_notes(rep0, lang=lang)
     except Exception as e:

@@ -993,7 +993,7 @@ A diferença mais profunda entre os dois documentos.
 | 2 | i18n, PCA diagnóstica, seletor de profundidade, PDF de intervalos | **MANTER** |
 | 3 | Argônio (Ar-Ka Area) em QC1 | ✅ **INCORPORADO (2026-07-28)** |
 | 4 | Nomenclatura "Coherent/Incoherent Scatter" como label | **INCORPORAR (leve)** |
-| 5 | Persistência temporal no QC4 (2 pontos consecutivos) | **MODIFICAR — discutir antes** (tensiona com decisão já tomada sobre flag pontual único) |
+| 5 | Persistência temporal no QC4 (2 pontos consecutivos) | ✅ **INCORPORADO (2026-07-28)** — opt-in (`use_rolling_persistence`, default `False`); ver `TODO.md`, seção "Bloqueados até decisão do time" |
 | 6 | Combinar sempre as variáveis no rolling (sem opt-in) | **DESCARTAR** |
 | 7 | Casamento de réplica por igualdade exata de profundidade | **DESCARTAR (crítico — regride achado C1)** |
 | 8 | `rpd()` com `mean==0` → NaN | **INCORPORAR (correção direta do TODO 1.1)** |

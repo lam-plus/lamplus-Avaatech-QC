@@ -52,8 +52,12 @@ ROLLING_VARS = ["Throughput", "Rh-La Area", "Rh-La-Inc Area", ARGON_COL]
 # que QC5 usa para casar réplicas (ver REPLICATE_KEY_COLS).
 REPLICATE_KEY_COLS = ["Spectrum", "CoreDepth"]
 
+# DEPTH_COL não está listado aqui de propósito: quando ausente do arquivo,
+# run_qc cai em CORE_DEPTH_COL (já obrigatório via REPLICATE_KEY_COLS) como
+# substituto — ver run_qc/check_file ("depth_col_fallback"). Exigir DEPTH_COL
+# aqui bloquearia arquivos de testemunho de seção única que só exportam
+# CoreDepth (ex. Dados Consolidados-ICCE3.xlsx).
 REQUIRED_COLUMNS = [
-    DEPTH_COL,
     REPLICATE_COL,
     "Throughput",
     "Rh-La Area",
@@ -155,6 +159,30 @@ COUNT_MODE_ROLLING_Z_ALERT = 4.0
 COUNT_MODE_RPD_WARNING = 10.0
 COUNT_MODE_RPD_CRITICAL = 20.0
 
+# ------------------------------------------------------------------------
+# Persistência temporal do QC4 (protocolo v4.2, DEVELOPMENT.md seção "8. QC4
+# – Rolling QC" / "Persistência"): uma anomalia de deriva só deveria disparar
+# ALERT quando aparece em >= ROLLING_PERSISTENCE_MIN_POINTS pontos dentro de
+# uma janela de ROLLING_PERSISTENCE_WINDOW medidas consecutivas (2 pontos
+# consecutivos é o caso particular de 2 pontos numa janela de 3 centrada em
+# qualquer um dos dois — um único critério cobre as duas regras do texto do
+# protocolo). Reduz falsos positivos de ruído estatístico pontual.
+#
+# Este item estava listado em TODO.md ("Bloqueados até decisão do time")
+# porque tensiona com a decisão já tomada no item 1.5 (flag pontual único é
+# válido por padrão, "defesa em profundidade"). Resolvido como opt-in via
+# use_rolling_persistence (default False preserva o comportamento atual) —
+# ver qc_rolling/run_qc.
+#
+# ROLLING_PERSISTENCE_Z_THRESHOLD reusa o limiar 2.0 já convencionado nesta
+# base como "atenção" pontual (Instrument_z/RhLa_z/RhLaInc_z, e o próprio
+# critério de Rolling_z > 2 no modo QI ponderado) — não o limiar mais alto
+# do modo de contagem (COUNT_MODE_ROLLING_Z_ALERT=4.0), que é específico
+# daquele modo alternativo de QF e não deve acoplar a lógica geral do QC4.
+ROLLING_PERSISTENCE_Z_THRESHOLD = 2.0
+ROLLING_PERSISTENCE_MIN_POINTS = 2
+ROLLING_PERSISTENCE_WINDOW = 3
+
 # ============================================================
 # FUNÇÕES ESTATÍSTICAS
 # ============================================================
@@ -210,6 +238,9 @@ def check_file(df, lang="pt"):
     if missing:
         errors.append(msg("missing_columns", cols=missing))
 
+    if DEPTH_COL not in df.columns and CORE_DEPTH_COL in df.columns:
+        warnings.append(msg("depth_col_fallback", col=CORE_DEPTH_COL))
+
     if REPLICATE_COL in df.columns:
         if "Rep0" not in df[REPLICATE_COL].values:
             errors.append(msg("missing_rep0", col=REPLICATE_COL))
@@ -234,9 +265,13 @@ def check_file(df, lang="pt"):
         if n_zero > 0:
             warnings.append(msg("zero_throughput", n=n_zero))
 
-    if DEPTH_COL in df.columns and REPLICATE_COL in df.columns:
+    # Usa DEPTH_COL quando presente; senão cai no mesmo fallback de run_qc
+    # (CORE_DEPTH_COL) para que este aviso reflita a coluna efetivamente
+    # usada como profundidade contínua pelo pipeline.
+    depth_col_for_dup = DEPTH_COL if DEPTH_COL in df.columns else CORE_DEPTH_COL
+    if depth_col_for_dup in df.columns and REPLICATE_COL in df.columns:
         rep0 = df[df[REPLICATE_COL] == "Rep0"]
-        dup = rep0[DEPTH_COL].duplicated().sum()
+        dup = rep0[depth_col_for_dup].duplicated().sum()
         if dup > 0:
             warnings.append(msg("dup_depths", n=dup))
 
@@ -291,7 +326,43 @@ def qc_rh_la_inc(rep0):
     return rep0
 
 
-def qc_rolling(rep0, window=ROLLING_WINDOW):
+def _apply_rolling_persistence(
+    delta_z,
+    threshold=ROLLING_PERSISTENCE_Z_THRESHOLD,
+    min_points=ROLLING_PERSISTENCE_MIN_POINTS,
+    window=ROLLING_PERSISTENCE_WINDOW,
+):
+    """
+    Suprime (zera) anomalias isoladas de |delta_z| (protocolo v4.2,
+    "Persistência" — ver ROLLING_PERSISTENCE_* acima). Um ponto só mantém seu
+    z-score de deriva se, numa janela de `window` medidas centrada nele
+    (janela reduzida nas bordas), houver pelo menos `min_points` pontos com
+    |delta_z| > threshold — incluindo ele mesmo.
+
+    Pressupõe que `delta_z` já está na ordem de profundidade (rep0 é
+    ordenado por DEPTH_COL antes de qc_rolling rodar — ver run_qc), senão
+    "consecutivo"/"janela" não teriam significado físico.
+    """
+    anomaly = (delta_z.abs() > threshold).fillna(False).to_numpy()
+    n = len(anomaly)
+    half = window // 2
+    persistent = np.zeros(n, dtype=bool)
+    for i in range(n):
+        if not anomaly[i]:
+            continue
+        lo = max(0, i - half)
+        hi = min(n, i + half + 1)
+        if anomaly[lo:hi].sum() >= min_points:
+            persistent[i] = True
+    # Só substitui por 0 os pontos que eram anomalia isolada (anomaly=True,
+    # persistent=False); pontos já abaixo do limiar (nunca marcados como
+    # anomaly) devem manter seu z-score original intacto — do contrário todo
+    # ponto "normal" seria zerado por engano, distorcendo Score_Rolling.
+    suppress = anomaly & ~persistent
+    return delta_z.where(~pd.Series(suppress, index=delta_z.index), 0.0)
+
+
+def qc_rolling(rep0, window=ROLLING_WINDOW, use_rolling_persistence=False):
     """
     QC4 — Rolling QC: detecta deriva local via média móvel.
 
@@ -299,6 +370,18 @@ def qc_rolling(rep0, window=ROLLING_WINDOW):
     uma variável ausente do arquivo (ex. Ar-Ka Area fora do modo 10 kV) é
     simplesmente ignorada — mesmo padrão de degradação graciosa usado em
     qc_pca/qc_replicates.
+
+    use_rolling_persistence: se False (padrão), comportamento inalterado —
+        qualquer ponto com |delta_z| acima do limiar dispara o critério de
+        deriva isoladamente ("defesa em profundidade", ver TODO.md item
+        1.5). Se True, aplica a regra de persistência do protocolo v4.2
+        (`_apply_rolling_persistence`) a cada `{var}_delta_z`: anomalias
+        isoladas (sem um segundo ponto acima do limiar na janela de 3) são
+        zeradas antes de seguir no pipeline. Como compute_scores/
+        compute_flags sempre leem `{var}_delta_z`/`Rolling_z` a partir das
+        colunas produzidas aqui, o efeito se propaga automaticamente para
+        Score_Rolling e para o critério de flag do QC4 nos dois modos de QF
+        (QI ponderado e contagem), sem precisar de parâmetro próprio ali.
     """
     rep0 = rep0.copy()
     for var in ROLLING_VARS:
@@ -307,7 +390,10 @@ def qc_rolling(rep0, window=ROLLING_WINDOW):
         roll = rep0[var].rolling(window=window, center=True, min_periods=1).mean()
         rep0[f"{var}_rolling"] = roll
         rep0[f"{var}_delta"] = rep0[var] - roll
-        rep0[f"{var}_delta_z"] = robust_zscore(rep0[f"{var}_delta"])
+        delta_z = pd.Series(robust_zscore(rep0[f"{var}_delta"]), index=rep0.index)
+        if use_rolling_persistence:
+            delta_z = _apply_rolling_persistence(delta_z)
+        rep0[f"{var}_delta_z"] = delta_z
     return rep0
 
 
@@ -734,6 +820,7 @@ def run_qc(
     combine_rolling_vars=False,
     include_pca_in_qf=False,
     use_count_mode=False,
+    use_rolling_persistence=False,
 ):
     """
     Executa o pipeline QC completo sobre o DataFrame bruto.
@@ -749,6 +836,13 @@ def run_qc(
             continua sendo calculado normalmente em ambos os modos (só o
             critério de atribuição do QF muda) — permanece disponível como
             diagnóstico mesmo quando não é ele quem decide o QF.
+        use_rolling_persistence: ver qc_rolling. Padrão False (comportamento
+            histórico — qualquer ponto isolado acima do limiar dispara o
+            critério de deriva do QC4). Se True, aplica a regra de
+            persistência do protocolo v4.2 (>=2 pontos consecutivos ou numa
+            janela de 3) antes do restante do pipeline, afetando
+            automaticamente Score_Rolling e o critério de flag do QC4 nos
+            dois modos de QF.
 
     Retorna:
         rep0         : DataFrame com todos os campos QC calculados
@@ -757,13 +851,24 @@ def run_qc(
         pca_elements : lista de elementos usados na PCA
     """
     rep0 = df[df[REPLICATE_COL] == "Rep0"].copy()
+
+    if DEPTH_COL not in rep0.columns:
+        # Fallback (ver check_file "depth_col_fallback"): arquivo não exporta
+        # CompositeDepth (mm), só CoreDepth — correto apenas para
+        # testemunho de seção única, onde CoreDepth já é contínuo. Sintetiza
+        # a coluna DEPTH_COL a partir de CORE_DEPTH_COL (já obrigatório via
+        # REPLICATE_KEY_COLS) para que o restante do pipeline e o frontend
+        # (qc_avaatech.py/report_pdf.py, que sempre esperam DEPTH_COL)
+        # funcionem sem nenhuma outra alteração.
+        rep0[DEPTH_COL] = rep0[CORE_DEPTH_COL]
+
     rep0 = rep0.sort_values(DEPTH_COL)
     rep0[DEPTH_COL] = rep0[DEPTH_COL].round(10)
 
     rep0 = qc_throughput(rep0)
     rep0 = qc_rh_la(rep0)
     rep0 = qc_rh_la_inc(rep0)
-    rep0 = qc_rolling(rep0)
+    rep0 = qc_rolling(rep0, use_rolling_persistence=use_rolling_persistence)
     rep0 = qc_replicates(df, rep0)
     rep0, pca_elements = qc_pca(rep0)
     rep0, p95, p99 = compute_scores(

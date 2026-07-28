@@ -25,6 +25,8 @@
   "include_pca_qf_help": "When disabled (default), PCA (QC6) is always calculated and shown normally in the diagnostic tab, but does not contribute to the QI or QF — it stays purely exploratory. When enabled, the Mahalanobis distance contributes to the QI again (5% weight) and can trigger QF=2/3 on multivariate outliers.",
   "use_count_mode_label": "QF mode by module count (v4.2 protocol)",
   "use_count_mode_help": "When disabled (default), the QF is set by the weighted Quality Index (QI) — a very good module can compensate for a bad one. When enabled, uses the alternative criterion from the v4.2 protocol: each QC module becomes an OK/ALERT/CRITICAL state (its own thresholds, distinct from the QI mode), and the final QF is a non-compensatory count — QF1 = 1 ALERT, QF2 = 2-3 ALERTs or 1 CRITICAL, QF3 = 2+ CRITICALs or 4+ ALERTs. The QI is still calculated and shown normally in both modes — only the criterion deciding the QF changes. Rows with missing critical data remain flagged as indeterminate (QF=ND) in both modes.",
+  "rolling_persistence_label": "Require temporal persistence in Rolling QC (QC4)",
+  "rolling_persistence_help": "When disabled (default), any isolated point with a drift deviation above the threshold already triggers the QC4 criterion (defense in depth). When enabled, applies the v4.2 protocol's persistence rule: a drift anomaly is only kept if it appears in at least 2 consecutive points or 2 points within a window of 3 measurements — isolated anomalies are treated as statistical noise and do not trigger the criterion, reducing false positives. Affects Score_Rolling and the QC4 flag criterion in both QF modes.",
   "depth_display_label": "Displayed depth column",
   "depth_display_composite": "Composite depth (CompositeDepth)",
   "depth_display_core": "Core depth (CoreDepth)",
@@ -81,6 +83,7 @@
     "pca_too_few_rows": "PCA (QC6) cannot be computed: only {n} Rep0 row(s) found (minimum required: {min}). Score_PCA will default to a neutral value (100); the other QC modules continue normally.",
     "missing_rep": "Missing replicate elements (partial RPD): {els}",
     "zero_throughput": "{n} rows with zero or null Throughput.",
-    "dup_depths": "{n} duplicate depths in Rep0."
+    "dup_depths": "{n} duplicate depths in Rep0.",
+    "depth_col_fallback": "Column 'CompositeDepth (mm)' is missing from this file; using '{col}' as a substitute for the continuous depth along the core. Only valid if the file has a single section — with multiple sections, '{col}' resets at each section and may produce incorrect depths/intervals at the transitions."
   }
 }
