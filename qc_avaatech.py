@@ -231,9 +231,9 @@ st.set_page_config(
     layout="wide",
 )
 
-LANG_OPTIONS = {"Português": "pt", "English": "en"}
+LANG_OPTIONS = {TEXTS[l]["language_name"]: l for l in TEXTS}
 lang_label = st.sidebar.selectbox(
-    TEXTS[DEFAULT_LANG]["language_label"] + " / Language",
+    TEXTS[DEFAULT_LANG]["language_selector_label"],
     options=list(LANG_OPTIONS.keys()),
     index=0,
 )
@@ -303,7 +303,7 @@ except Exception as e:
     st.stop()
 
 if not sheets:
-    st.error(T["read_error"].format(error="no recognizable sheets"))
+    st.error(T["no_sheets_error"])
     st.stop()
 
 st.success(T["load_success"].format(

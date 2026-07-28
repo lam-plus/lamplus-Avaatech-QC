@@ -3,13 +3,23 @@
 ## O que este app faz
 
 O LAM+ Core QC é um pipeline de Controle de Qualidade para dados gerados pelo
-scanner XRF Avaatech. Ele recebe um arquivo Excel exportado pelo scanner e
-executa uma série de checagens estatísticas sobre as medidas em réplica
-"Rep0" ao longo da profundidade do testemunho (core):
+scanner XRF Avaatech. Ele recebe um arquivo Excel exportado pelo scanner —
+uma única aba (10 kV) ou um **workbook multi-energia** (abas separadas 10 kV/
+30 kV/50 kV, detectadas automaticamente pelo nome — ver "Estrutura
+multi-energia" abaixo) — e executa uma série de checagens estatísticas sobre
+as medidas em réplica "Rep0" ao longo da profundidade do testemunho (core):
 
-- **QC1–QC3**: z-score robusto (baseado em MAD) sobre Throughput, Rh-Lα e
-  Rh-Lα-Inc, para detectar outliers pontuais.
-- **QC4 — Rolling QC**: média móvel para detectar deriva local do sinal.
+- **QC1 — Instrument Stability**: z-score robusto do Throughput, combinado
+  com o pico de Argônio (Ar-Kα) quando presente (só existe em modo 10 kV) —
+  usa o pior dos dois z-scores, linha a linha.
+- **QC2/QC3 — Coherent/Incoherent Scatter**: z-score robusto pontual sobre o
+  espalhamento coerente/incoerente da energia (Rh-Lα/Rh-Lα-Inc em 10 kV,
+  Rh-Kα-Coh/Rh-Kα-Inc em 30 kV; não medidos em 50 kV).
+- **QC4 — Rolling QC**: média móvel para detectar deriva local do sinal, na
+  variável incoerente da energia por padrão (opt-in para combinar todas as
+  variáveis disponíveis). Opcionalmente exige persistência temporal (≥2
+  pontos consecutivos ou numa janela de 3) antes de considerar a anomalia,
+  em vez de reagir a um único ponto isolado (opt-in, default desligado).
 - **QC5 — Réplicas**: RPD (Relative Percent Difference) médio entre réplicas,
   casadas pela posição física de medição (Spectrum + CoreDepth), para um
   conjunto de elementos.
@@ -18,17 +28,26 @@ executa uma série de checagens estatísticas sobre as medidas em réplica
   anômalas no espaço multivariado. É sempre calculada como diagnóstico, mas
   por padrão não entra no QI/QF (módulo exploratório, opt-in via checkbox).
 
+Um módulo que a energia da aba não mede (ex. QC2/QC3 em 50 kV) recebe nota
+neutra e tem seu peso excluído do QI para aquela aba, em vez de ser tratado
+como dado faltante.
+
 A partir desses módulos, o pipeline calcula um **Quality Index (QI)** — uma
 combinação ponderada dos scores individuais disponíveis (por padrão, sem
 QC6) — e classifica cada medida em um **Quality Flag (QF)**: 0 (OK),
 1 (Atenção), 2 (Suspeito), 3 (Rejeitado) ou 9 (Indeterminado, quando falta
-dado crítico para avaliar a medição).
+dado crítico para avaliar a medição). Duas filosofias de atribuição de QF
+estão disponíveis (opt-in via checkbox): o modo QI ponderado (default,
+compensatório) e o modo de contagem de módulos reprovados do protocolo v4.2
+(não compensatório — ver seção "Protocolo v4.2" abaixo).
 
 O `qc_core.py` contém toda a lógica de cálculo (validação de estrutura do
 arquivo, estatísticas, scores e flags) e pode ser usado de forma independente
 do frontend. O `qc_avaatech.py` é a interface Streamlit: permite fazer upload
-do Excel, visualizar os diagnósticos em gráficos (um por módulo de QC), ver a
-tabela de resultados e exportar o resultado final em `.xlsx`.
+do Excel (uma ou várias abas), visualizar os diagnósticos em gráficos (um por
+módulo de QC, por aba/energia), ver a tabela de resultados e exportar o
+resultado final em `.xlsx` (uma aba por energia processada, com coloração
+condicional verde/amarelo/vermelho nas colunas de QC adicionadas).
 
 ## Internacionalização (i18n)
 
@@ -941,24 +960,24 @@ Comparação entre o protocolo acima e a implementação atual (`qc_core.py`/`qc
 
 #### 3. QC2/QC3 — Coherent/Incoherent Scatter
 
-**MANTER** — mapeiam 1:1 para `qc_rh_la`/`qc_rh_la_inc` atuais. A nomenclatura conceitual do v4.2 é mais clara cientificamente — vale trazer só como *label* de exibição (chave i18n), sem mudar a lógica.
+**MANTER** — mapeiam 1:1 para `qc_rh_la`/`qc_rh_la_inc` atuais. A nomenclatura conceitual do v4.2 é mais clara cientificamente — trazida só como *label* de exibição (chave i18n, item d), sem mudar a lógica.
 
-**INCORPORAR (condicional)** — v4.2 varia a variável por energia (`Rh-Ka-Coh`/`Rh-Ka-Inc` em 30 kV, ausente em 50 kV). Só relevante se o laboratório de fato gerar arquivos multi-energia (ver item 6).
+✅ **INCORPORADO em 2026-07-28** — a variação por energia (`Rh-Ka-Coh`/`Rh-Ka-Inc` em 30 kV, ausente em 50 kV) foi implementada junto com a estrutura multi-energia (ver item 6 abaixo): `qc_rh_la`/`qc_rh_la_inc` recebem `energy` e resolvem a coluna física via `ENERGY_PARAMETERS`.
 
 #### 4. QC4 — Rolling QC
 
-**MODIFICAR (discutir antes)** — duas diferenças reais frente a `qc_rolling`/`compute_scores` (`qc_core.py:235`, `qc_core.py:343-348`):
+✅ **INCORPORADO em 2026-07-28** — as duas diferenças identificadas nesta análise foram resolvidas:
 
-1. **Persistência temporal**: v4.2 só emite ALERT quando a anomalia aparece em ≥2 pontos consecutivos ou 2 pontos numa janela de 3 — reduz falsos positivos de ruído estatístico pontual. O atual dispara com um único ponto acima do z-threshold. Tensiona com decisão já tomada (item 1.5 do TODO): flag pontual único é intencional ("defesa em profundidade"), só explicado via `is_pointwise_flag`/`Pointwise_Flag_Note` em vez de suprimido. **Precisa decisão do time.**
-2. v4.2 inclui Argônio no conjunto de variáveis do rolling — consistente com a incorporação do Argônio no QC1.
+1. **Persistência temporal**: implementada como **opt-in** (`use_rolling_persistence`, default `False`), sob alinhamento explícito do usuário (Andre Belem) — resolve a tensão com o item 1.5 do TODO sem alterar o default ("defesa em profundidade" continua sendo o comportamento padrão; a persistência é uma escolha explícita da sessão). Ver `qc_core._apply_rolling_persistence`/`qc_rolling` e `TODO.md`, seção "Bloqueados até decisão do time", para a implementação e validação completas.
+2. Argônio no conjunto de variáveis do rolling — já incorporado junto com o item b (Argônio em QC1), ver seção 2 acima.
 
-**DESCARTAR (parcial)** — v4.2 sempre combina as variáveis via máximo (equivalente a `combine_rolling_vars=True` fixo, sem opção). Contradiz a decisão de 2026-06-28 (item 4.1 do TODO) de que Rh-Lα-Inc sozinho é o default. Manter o comportamento atual (com Argônio como quarta variável opcional, se incorporado).
+**DESCARTAR (mantido)** — v4.2 sempre combina as variáveis via máximo (equivalente a `combine_rolling_vars=True` fixo, sem opção). Contradiz a decisão de 2026-06-28 (item 4.1 do TODO) de que a variável incoerente sozinha é o default — **não portado**; `combine_rolling_vars` continua opt-in. Exceção graciosa: em 50 kV (sem variável incoerente), `compute_scores` cai automaticamente no modo combinado, já que não há variável espectral "default" a usar sozinha nessa energia.
 
 #### 5. QC5 — Réplicas
 
 **DESCARTAR (crítico)** — `replicates.py` do v4.2 casa réplicas por **igualdade exata de profundidade**. É exatamente o bug do achado C1, já corrigido (`REPLICATE_KEY_COLS = ["Spectrum", "CoreDepth"]`, `qc_core.py:246-269`): `CompositeDepth (mm)` fica nulo em Rep1/Rep2 no arquivo real. **Não portar essa parte do v4.2.**
 
-**INCORPORAR** — `rpd()` do v4.2 trata `mean == 0` retornando `NaN` explicitamente. É a correção do item 1.1, ainda aberto no `TODO.md` (`calculate_rpd` atual gera `inf` em vez de `NaN`, causando `RuntimeWarning`). Correção pequena e direta.
+✅ **INCORPORADO em 2026-07-28** — `rpd()`/`calculate_rpd` do v4.2 trata `mean == 0` retornando `NaN` explicitamente antes da divisão, em vez de propagar `inf`. Ver `TODO.md` item 1.1 para a validação (rodado com `-W error::RuntimeWarning`, sem regressão de QF).
 
 **MODIFICAR (a discutir)** — v4.2 usa thresholds discretos de RPD (<10% OK, 10–20% ALERT, >20% CRITICAL) em vez da fórmula contínua atual (`100 - Mean_RPD*4`). Filosofias diferentes — só relevante se o modo de QF por contagem (item 7) for adotado.
 
@@ -979,7 +998,7 @@ A diferença mais profunda entre os dois documentos.
 
 #### 8. Produtos de saída (Excel/relatório)
 
-**INCORPORAR** — preenchimento de cor por célula no Excel (verde/amarelo/vermelho via `openpyxl.PatternFill`) é melhoria de UX simples, sem dependência nova (openpyxl já usado em `to_excel_bytes`, `qc_avaatech.py:120`).
+✅ **INCORPORADO em 2026-07-28** (item c) — preenchimento de cor por célula no Excel (verde/amarelo/vermelho via `openpyxl.PatternFill`), restrito às colunas adicionadas pelo pipeline QC (nunca nas colunas originais do Avaatech). Ver `TODO.md`, seção 9, item c, para a divergência deliberada frente ao `reports.py` do apêndice (match numérico 0/1/2/3 restrito à coluna `QF`) e a validação completa. **Desde a implementação de multi-energia (2026-07-28)**, `to_excel_bytes` exporta um workbook com uma aba por energia processada, cada uma com sua própria coloração — não muda a lógica de coloração em si, só a passou a aplicar por aba.
 
 **MANTER** — o relatório atual (PDF com página de intervalos problemáticos, causas traduzidas, ícone de flag pontual, nota de rodapé — `report_pdf.py`) é estruturalmente mais rico que o `QC_Summary.txt` simples do v4.2. Não vale substituir; no máximo, gerar um `.txt`/resumo simples como complemento rápido do PDF.
 
@@ -992,16 +1011,16 @@ A diferença mais profunda entre os dois documentos.
 | 1 | Layout de arquivos (config/main/io_module/qc/reports/replicates) | **DESCARTAR** |
 | 2 | i18n, PCA diagnóstica, seletor de profundidade, PDF de intervalos | **MANTER** |
 | 3 | Argônio (Ar-Ka Area) em QC1 | ✅ **INCORPORADO (2026-07-28)** |
-| 4 | Nomenclatura "Coherent/Incoherent Scatter" como label | **INCORPORAR (leve)** |
+| 4 | Nomenclatura "Coherent/Incoherent Scatter" como label | ✅ **INCORPORADO (2026-07-28)** — item d do `TODO.md`, seção 9 |
 | 5 | Persistência temporal no QC4 (2 pontos consecutivos) | ✅ **INCORPORADO (2026-07-28)** — opt-in (`use_rolling_persistence`, default `False`); ver `TODO.md`, seção "Bloqueados até decisão do time" |
 | 6 | Combinar sempre as variáveis no rolling (sem opt-in) | **DESCARTAR** |
 | 7 | Casamento de réplica por igualdade exata de profundidade | **DESCARTAR (crítico — regride achado C1)** |
-| 8 | `rpd()` com `mean==0` → NaN | **INCORPORAR (correção direta do TODO 1.1)** |
+| 8 | `rpd()` com `mean==0` → NaN | ✅ **INCORPORADO (2026-07-28)** — item 1.1 do `TODO.md` |
 | 9 | Thresholds discretos de RPD (10%/20%) | **MODIFICAR — só se item 12 for adotado** |
 | 10 | Estrutura multi-energia (abas 10/30/50 kV) | ✅ **INCORPORADO (2026-07-28)** — `ENERGY_PARAMETERS`/`detect_energy`/`read_workbook`; ver `TODO.md`, seção 9 |
 | 11 | NaN → sempre "OK" nos estados discretos | **DESCARTAR (crítico — regride achado C2)** |
 | 12 | QF por contagem de módulos reprovados | ✅ **INCORPORADO (2026-07-28)** — item 8.7/seção 9(e) do `TODO.md` |
-| 13 | Preenchimento de cor no Excel exportado | **INCORPORAR** |
+| 13 | Preenchimento de cor no Excel exportado | ✅ **INCORPORADO (2026-07-28)** — item c do `TODO.md`, seção 9 |
 | 14 | QC_Summary.txt | **MANTER PDF atual; TXT como complemento opcional** |
 | 15 | Exportar réplicas brutas junto no `.xlsx` | **MODIFICAR — confirmar com usuário** |
 

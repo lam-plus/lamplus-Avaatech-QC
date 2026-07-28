@@ -23,3 +23,11 @@ installer/build/
 installer/__pycache__/
 *.exe
 *.spec.bak
+
+# Arquivos temporários de SO/editor
+.DS_Store
+Thumbs.db
+*.bak
+*.tmp
+*.swp
+*~
