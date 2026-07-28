@@ -21,6 +21,9 @@ __pycache__/
 installer/dist/
 installer/build/
 installer/__pycache__/
+LEGACY/installer/dist/
+LEGACY/installer/build/
+LEGACY/installer/__pycache__/
 *.exe
 *.spec.bak
 
