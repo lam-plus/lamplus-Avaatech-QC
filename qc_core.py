@@ -39,31 +39,132 @@ CORE_DEPTH_COL = "CoreDepth"
 # (Throughput sozinho).
 ARGON_COL = "Ar-Ka Area"
 
-# Variáveis usadas no QC4 (rolling). As três originais tendem a reagir juntas
-# a um mesmo problema físico de medição (rachadura, bolha de ar, transição
-# seco/úmido) — ver compute_scores/combine_rolling_vars. Ar-Ka Area (Argônio)
-# entra como quarta variável opcional (qc_rolling ignora qualquer uma que não
-# esteja presente no arquivo).
-ROLLING_VARS = ["Throughput", "Rh-La Area", "Rh-La-Inc Area", ARGON_COL]
-
 # CompositeDepth (mm) só é preenchido na primeira passada (Rep0); em Rep1/Rep2
 # essa coluna vem nula. Spectrum + CoreDepth identificam a posição física de
 # medição e estão sempre preenchidos em todas as réplicas — é essa combinação
 # que QC5 usa para casar réplicas (ver REPLICATE_KEY_COLS).
 REPLICATE_KEY_COLS = ["Spectrum", "CoreDepth"]
 
-# DEPTH_COL não está listado aqui de propósito: quando ausente do arquivo,
-# run_qc cai em CORE_DEPTH_COL (já obrigatório via REPLICATE_KEY_COLS) como
-# substituto — ver run_qc/check_file ("depth_col_fallback"). Exigir DEPTH_COL
-# aqui bloquearia arquivos de testemunho de seção única que só exportam
-# CoreDepth (ex. Dados Consolidados-ICCE3.xlsx).
-REQUIRED_COLUMNS = [
-    REPLICATE_COL,
-    "Throughput",
-    "Rh-La Area",
-    "Rh-La-Inc Area",
-    *REPLICATE_KEY_COLS,
-]
+# ------------------------------------------------------------------------
+# Estrutura multi-energia (protocolo v4.2, DEVELOPMENT.md "io_module.py"/
+# "config.py" — TODO.md item 6/seção 9, "Estrutura multi-energia"): um
+# workbook Avaatech pode ter uma aba por energia de tubo (10 kV/30 kV/50 kV),
+# cada uma medindo um subconjunto diferente de parâmetros — confirmado
+# contra `data/Dados Consolidados-ICCE3.xlsx` (3 abas: 10kV/30kV/50kV, cada
+# uma com colunas Rh-Lα/Rh-Kα diferentes). ENERGY_PARAMETERS espelha
+# ENERGY_PARAMETERS do apêndice; "10kV" reproduz exatamente os literais já
+# hardcoded neste arquivo antes desta mudança — qualquer função abaixo
+# chamada sem especificar `energy` (default DEFAULT_ENERGY="10kV") reproduz
+# o comportamento anterior byte a byte (ver ROLLING_VARS/REQUIRED_COLUMNS/
+# CRITICAL_INPUT_COLS logo abaixo, agora derivados daqui em vez de literais
+# soltos, para não duplicar a fonte de verdade).
+DEFAULT_ENERGY = "10kV"
+
+ENERGY_PARAMETERS = {
+    "10kV": {
+        "throughput": "Throughput",
+        "argon": ARGON_COL,
+        "coherent": "Rh-La Area",
+        "incoherent": "Rh-La-Inc Area",
+    },
+    "30kV": {
+        "throughput": "Throughput",
+        "argon": None,
+        "coherent": "Rh-Ka-Coh Area",
+        "incoherent": "Rh-Ka-Inc Area",
+    },
+    "50kV": {
+        "throughput": "Throughput",
+        "argon": None,
+        "coherent": None,
+        "incoherent": None,
+    },
+}
+
+
+def detect_energy(sheet_name):
+    """
+    Detecta a energia (10kV/30kV/50kV) a partir do nome da aba, seguindo o
+    padrão de `detect_energy` do `io_module.py` do protocolo v4.2
+    (DEVELOPMENT.md): procura o substring "10"/"30"/"50" no nome, sem
+    diferenciar maiúsculas/minúsculas (cobre variações como "10kv"/"10kV").
+    Levanta ValueError para abas cuja energia não pode ser inferida — quem
+    chama decide se isso bloqueia o arquivo inteiro ou só aquela aba (ver
+    qc_avaatech.py/read_workbook).
+    """
+    name = str(sheet_name).lower()
+    if "10" in name:
+        return "10kV"
+    if "30" in name:
+        return "30kV"
+    if "50" in name:
+        return "50kV"
+    raise ValueError(f"Energia não reconhecida a partir do nome da aba: '{sheet_name}'.")
+
+
+def _energy_cfg(energy):
+    if energy not in ENERGY_PARAMETERS:
+        raise ValueError(f"Energia desconhecida: '{energy}'. Válidas: {list(ENERGY_PARAMETERS)}.")
+    return ENERGY_PARAMETERS[energy]
+
+
+def _required_columns_for_energy(energy):
+    """
+    Colunas obrigatórias específicas da energia (ver REQUIRED_COLUMNS
+    abaixo — para DEFAULT_ENERGY reproduz a mesma lista/ordem de antes).
+    DEPTH_COL não entra aqui de propósito: quando ausente do arquivo, run_qc
+    cai em CORE_DEPTH_COL (já obrigatório via REPLICATE_KEY_COLS) como
+    substituto — ver run_qc/check_file ("depth_col_fallback"). Exigir
+    DEPTH_COL aqui bloquearia arquivos de testemunho de seção única que só
+    exportam CoreDepth.
+    """
+    cfg = _energy_cfg(energy)
+    cols = [REPLICATE_COL, cfg["throughput"]]
+    if cfg["coherent"] is not None:
+        cols.append(cfg["coherent"])
+    if cfg["incoherent"] is not None:
+        cols.append(cfg["incoherent"])
+    cols.extend(REPLICATE_KEY_COLS)
+    return cols
+
+
+def _critical_cols_for_energy(energy):
+    """
+    Colunas cuja ausência (NaN) por linha torna o QI/QF indeterminados nesta
+    energia (ver CRITICAL_INPUT_COLS abaixo). QC2/QC3 (coerente/incoerente)
+    só entram quando a energia efetivamente os mede — quando `cfg["coherent"]`/
+    `cfg["incoherent"]` é None (ex. 50 kV não mede nenhum dos dois), a
+    ausência é estrutural (o módulo não se aplica a essa energia, análogo a
+    Argônio/PCA), não um dado faltante pontual — por isso não entra em
+    CRITICAL_INPUT_COLS para essa energia (ver também compute_scores,
+    módulo fica neutro + peso excluído do QI em vez de QF_INDETERMINATE).
+    """
+    cfg = _energy_cfg(energy)
+    cols = [cfg["throughput"]]
+    if cfg["coherent"] is not None:
+        cols.append(cfg["coherent"])
+    if cfg["incoherent"] is not None:
+        cols.append(cfg["incoherent"])
+    return cols
+
+
+def _rolling_vars_for_energy(energy):
+    """Variáveis do QC4 (rolling) para esta energia, na mesma ordem usada
+    antes desta mudança (Throughput, coerente, incoerente, Argônio) — para
+    DEFAULT_ENERGY reproduz exatamente ROLLING_VARS."""
+    cfg = _energy_cfg(energy)
+    return [v for v in (cfg["throughput"], cfg["coherent"], cfg["incoherent"], cfg["argon"]) if v is not None]
+
+
+# Variáveis usadas no QC4 (rolling) para a energia padrão (10 kV). As três
+# originais tendem a reagir juntas a um mesmo problema físico de medição
+# (rachadura, bolha de ar, transição seco/úmido) — ver compute_scores/
+# combine_rolling_vars. qc_rolling ignora graciosamente qualquer uma que não
+# esteja presente no arquivo (e usa `_rolling_vars_for_energy` para outras
+# energias — ver qc_rolling/compute_scores).
+ROLLING_VARS = _rolling_vars_for_energy(DEFAULT_ENERGY)
+
+REQUIRED_COLUMNS = _required_columns_for_energy(DEFAULT_ENERGY)
 
 ELEMENTS_PCA = [
     "Al-Ka Area",
@@ -94,9 +195,10 @@ ELEMENTS_REPLICATES = [
 ]
 
 # Colunas cuja ausência (NaN) numa linha torna o QI dessa linha indeterminado
-# (QC1-QC3 — sempre obrigatórias). QC5/QC6 já têm seus próprios fallbacks e
-# não entram aqui de propósito (ver TODO.md achado C2).
-CRITICAL_INPUT_COLS = ["Throughput", "Rh-La Area", "Rh-La-Inc Area"]
+# na energia padrão (QC1-QC3 — sempre obrigatórias em 10 kV). QC5/QC6 já têm
+# seus próprios fallbacks e não entram aqui de propósito (ver TODO.md achado
+# C2). Ver _critical_cols_for_energy para o equivalente noutras energias.
+CRITICAL_INPUT_COLS = _critical_cols_for_energy(DEFAULT_ENERGY)
 
 # QI mínimo para uma linha ser considerada "agregadamente OK" — usado tanto
 # em compute_flags (QF=1 se abaixo disso) quanto em is_pointwise_flag (ver
@@ -217,12 +319,19 @@ def calculate_rpd(values):
 # CHECK DE CONSISTÊNCIA
 # ============================================================
 
-def check_file(df, lang="pt"):
+def check_file(df, lang="pt", energy=DEFAULT_ENERGY):
     """
-    Valida estrutura do DataFrame antes de rodar o pipeline.
+    Valida estrutura do DataFrame antes de rodar o pipeline. Opera sobre uma
+    única aba/energia por chamada — em um workbook multi-energia (10 kV/
+    30 kV/50 kV), cada aba é validada independentemente, uma chamada por aba
+    (ver qc_avaatech.py).
 
     Args:
         lang: "pt" ou "en" — idioma das mensagens retornadas.
+        energy: "10kV"/"30kV"/"50kV" (ver ENERGY_PARAMETERS/detect_energy).
+            Determina quais colunas são obrigatórias (ex. 50 kV não mede
+            Rh-Lα/Rh-Lα-Inc nem seus equivalentes Rh-Kα, então não exige
+            nenhuma das duas).
 
     Retorna:
         errors   : list[str] — erros que bloqueiam a execução
@@ -234,7 +343,8 @@ def check_file(df, lang="pt"):
     def msg(key, **kwargs):
         return CHECK_MESSAGES[key][lang].format(**kwargs)
 
-    missing = [c for c in REQUIRED_COLUMNS if c not in df.columns]
+    required_columns = _required_columns_for_energy(energy)
+    missing = [c for c in required_columns if c not in df.columns]
     if missing:
         errors.append(msg("missing_columns", cols=missing))
 
@@ -282,10 +392,14 @@ def check_file(df, lang="pt"):
 # MÓDULOS QC INDIVIDUAIS
 # ============================================================
 
-def qc_throughput(rep0):
+def qc_throughput(rep0, energy=DEFAULT_ENERGY):
     """
     QC1 — Instrument Stability: z-score robusto do Throughput, combinado com
     o pico de Argônio quando presente no arquivo (protocolo v4.2, seção 5).
+    Argônio só existe em modo 10 kV (`ENERGY_PARAMETERS[energy]["argon"]` é
+    None para 30/50 kV) — nesses casos, Instrument_z já cai de volta para
+    Throughput_z puro, mesmo comportamento de quando a coluna simplesmente
+    está ausente do arquivo.
 
     "Combinado" = pior dos dois: rep0["Instrument_z"] é o z-score (Throughput
     ou Argônio) de maior magnitude absoluta linha a linha — um problema de
@@ -294,11 +408,15 @@ def qc_throughput(rep0):
     continuam disponíveis individualmente (diagnóstico); Instrument_z é quem
     alimenta Score_Throughput/compute_flags.
     """
-    rep0 = rep0.copy()
-    rep0["Throughput_z"] = robust_zscore(rep0["Throughput"])
+    cfg = _energy_cfg(energy)
+    throughput_col = cfg["throughput"]
+    argon_col = cfg["argon"]
 
-    if ARGON_COL in rep0.columns:
-        rep0["Argon_z"] = robust_zscore(rep0[ARGON_COL])
+    rep0 = rep0.copy()
+    rep0["Throughput_z"] = robust_zscore(rep0[throughput_col])
+
+    if argon_col is not None and argon_col in rep0.columns:
+        rep0["Argon_z"] = robust_zscore(rep0[argon_col])
         abs_throughput = rep0["Throughput_z"].abs()
         abs_argon = rep0["Argon_z"].abs()
         # NaN nunca "vence" (fillna(-1) garante que um lado ausente não seja
@@ -312,17 +430,42 @@ def qc_throughput(rep0):
     return rep0
 
 
-def qc_rh_la(rep0):
-    """QC2 — Z-score robusto do Rh-Lα."""
+def qc_rh_la(rep0, energy=DEFAULT_ENERGY):
+    """
+    QC2 — Z-score robusto do Coherent Scatter (Rh-Lα em 10 kV, Rh-Kα-Coh em
+    30 kV — ver ENERGY_PARAMETERS). Quando a energia não mede esse parâmetro
+    (`cfg["coherent"] is None`, caso de 50 kV) ou a coluna está ausente do
+    arquivo, RhLa_z fica NaN em todas as linhas — módulo estruturalmente não
+    aplicável para essa energia, não um dado faltante pontual (ver
+    compute_scores: nesse caso o módulo fica neutro e seu peso é excluído do
+    QI, em vez de QF_INDETERMINATE por linha).
+    """
+    cfg = _energy_cfg(energy)
+    coherent_col = cfg["coherent"]
+
     rep0 = rep0.copy()
-    rep0["RhLa_z"] = robust_zscore(rep0["Rh-La Area"])
+    if coherent_col is not None and coherent_col in rep0.columns:
+        rep0["RhLa_z"] = robust_zscore(rep0[coherent_col])
+    else:
+        rep0["RhLa_z"] = np.nan
     return rep0
 
 
-def qc_rh_la_inc(rep0):
-    """QC3 — Z-score robusto do Rh-Lα-Inc."""
+def qc_rh_la_inc(rep0, energy=DEFAULT_ENERGY):
+    """
+    QC3 — Z-score robusto do Incoherent Scatter (Rh-Lα-Inc em 10 kV,
+    Rh-Kα-Inc em 30 kV — ver ENERGY_PARAMETERS). Mesma degradação graciosa
+    de qc_rh_la quando a energia não mede esse parâmetro (50 kV) ou a coluna
+    está ausente.
+    """
+    cfg = _energy_cfg(energy)
+    incoherent_col = cfg["incoherent"]
+
     rep0 = rep0.copy()
-    rep0["RhLaInc_z"] = robust_zscore(rep0["Rh-La-Inc Area"])
+    if incoherent_col is not None and incoherent_col in rep0.columns:
+        rep0["RhLaInc_z"] = robust_zscore(rep0[incoherent_col])
+    else:
+        rep0["RhLaInc_z"] = np.nan
     return rep0
 
 
@@ -362,14 +505,16 @@ def _apply_rolling_persistence(
     return delta_z.where(~pd.Series(suppress, index=delta_z.index), 0.0)
 
 
-def qc_rolling(rep0, window=ROLLING_WINDOW, use_rolling_persistence=False):
+def qc_rolling(rep0, window=ROLLING_WINDOW, use_rolling_persistence=False, energy=DEFAULT_ENERGY):
     """
     QC4 — Rolling QC: detecta deriva local via média móvel.
 
-    Itera ROLLING_VARS (Throughput, Rh-La Area, Rh-La-Inc Area, Ar-Ka Area);
-    uma variável ausente do arquivo (ex. Ar-Ka Area fora do modo 10 kV) é
-    simplesmente ignorada — mesmo padrão de degradação graciosa usado em
-    qc_pca/qc_replicates.
+    Itera as variáveis da energia (`_rolling_vars_for_energy` — para
+    DEFAULT_ENERGY é Throughput/Rh-La Area/Rh-La-Inc Area/Ar-Ka Area, igual a
+    ROLLING_VARS); uma variável ausente do arquivo (ex. Ar-Ka Area fora do
+    modo 10 kV, ou coerente/incoerente ausentes em 30/50 kV) é simplesmente
+    ignorada — mesmo padrão de degradação graciosa usado em qc_pca/
+    qc_replicates.
 
     use_rolling_persistence: se False (padrão), comportamento inalterado —
         qualquer ponto com |delta_z| acima do limiar dispara o critério de
@@ -384,7 +529,7 @@ def qc_rolling(rep0, window=ROLLING_WINDOW, use_rolling_persistence=False):
         (QI ponderado e contagem), sem precisar de parâmetro próprio ali.
     """
     rep0 = rep0.copy()
-    for var in ROLLING_VARS:
+    for var in _rolling_vars_for_energy(energy):
         if var not in rep0.columns:
             continue
         roll = rep0[var].rolling(window=window, center=True, min_periods=1).mean()
@@ -459,7 +604,7 @@ def qc_pca(rep0):
 # SCORES
 # ============================================================
 
-def compute_scores(rep0, strict_missing_data=True, combine_rolling_vars=False, include_pca_in_qf=False):
+def compute_scores(rep0, strict_missing_data=True, combine_rolling_vars=False, include_pca_in_qf=False, energy=DEFAULT_ENERGY):
     """
     Calcula scores individuais e Quality Index (QI).
 
@@ -470,15 +615,18 @@ def compute_scores(rep0, strict_missing_data=True, combine_rolling_vars=False, i
             disponíveis, redistribuindo os pesos entre eles. Em ambos os
             casos a linha é sinalizada como indeterminada em compute_flags;
             o que muda é apenas se o QI fica indefinido ou aproximado.
-        combine_rolling_vars: se False (padrão), o QC4 considera apenas
-            Rh-Lα-Inc — é o dado espectral real medido; Throughput, Rh-Lα e
+        combine_rolling_vars: se False (padrão), o QC4 considera apenas a
+            variável incoerente da energia (Rh-Lα-Inc em 10 kV, Rh-Kα-Inc em
+            30 kV) — é o dado espectral real medido; Throughput, coerente e
             Argônio são parâmetros instrumentais secundários. Se True, usa o
-            maior |z-score| de deriva entre as ROLLING_VARS presentes no
-            arquivo (Throughput, Rh-Lα, Rh-Lα-Inc, Ar-Ka Area) — um problema
-            físico de medição tende a aparecer em pelo menos uma delas, então
+            maior |z-score| de deriva entre as variáveis da energia presentes
+            no arquivo (ver `_rolling_vars_for_energy`) — um problema físico
+            de medição tende a aparecer em pelo menos uma delas, então
             combinar amplia a sensibilidade às custas de poder reagir a
             deriva instrumental não relacionada ao dado espectral. O valor
-            efetivamente usado fica em rep0["Rolling_z"].
+            efetivamente usado fica em rep0["Rolling_z"]. Em 50 kV (sem
+            variável incoerente) sempre combina as disponíveis, já que não há
+            variável espectral "default" para usar sozinha.
         include_pca_in_qf: se False (padrão), Score_PCA continua sempre
             calculado (PCA permanece um módulo de diagnóstico exploratório,
             sempre visível na aba correspondente), mas é excluído do QI —
@@ -487,18 +635,38 @@ def compute_scores(rep0, strict_missing_data=True, combine_rolling_vars=False, i
             entrar no QI com seu peso nominal (5%). Ver também compute_flags:
             o critério pontual de Mahalanobis (QF=2/3 por anomalia
             multivariada) é igualmente desligado quando False.
+        energy: "10kV"/"30kV"/"50kV" (ver ENERGY_PARAMETERS). Determina qual
+            variável alimenta o QC4 por padrão e quais dos módulos QC2/QC3
+            (coerente/incoerente) são estruturalmente aplicáveis — quando não
+            aplicáveis (ex. 50 kV não mede nenhum dos dois), o score
+            correspondente fica neutro (100, mesmo padrão já usado por
+            Score_PCA/Score_Replica quando indisponíveis) e seu peso é
+            excluído do QI (renormalizado), em vez de propagar NaN linha a
+            linha — a ausência é estrutural do dataset inteiro, não um dado
+            faltante pontual (ver TODO.md, "Estrutura multi-energia").
     """
+    cfg = _energy_cfg(energy)
     rep0 = rep0.copy()
 
     rep0["Score_Throughput"] = score_from_z(rep0["Instrument_z"])
-    rep0["Score_RhLa"] = score_from_z(rep0["RhLa_z"])
-    rep0["Score_RhLaInc"] = score_from_z(rep0["RhLaInc_z"])
 
-    if combine_rolling_vars:
-        delta_z_cols = [f"{v}_delta_z" for v in ROLLING_VARS if f"{v}_delta_z" in rep0.columns]
+    rhla_active = cfg["coherent"] is not None
+    rhlainc_active = cfg["incoherent"] is not None
+    rep0["Score_RhLa"] = score_from_z(rep0["RhLa_z"]) if rhla_active else 100
+    rep0["Score_RhLaInc"] = score_from_z(rep0["RhLaInc_z"]) if rhlainc_active else 100
+
+    rolling_vars = _rolling_vars_for_energy(energy)
+    default_rolling_var = cfg["incoherent"]
+    use_combined_rolling = (
+        combine_rolling_vars
+        or default_rolling_var is None
+        or f"{default_rolling_var}_delta_z" not in rep0.columns
+    )
+    if use_combined_rolling:
+        delta_z_cols = [f"{v}_delta_z" for v in rolling_vars if f"{v}_delta_z" in rep0.columns]
         rep0["Rolling_z"] = rep0[delta_z_cols].abs().max(axis=1)
     else:
-        rep0["Rolling_z"] = rep0["Rh-La-Inc Area_delta_z"].abs()
+        rep0["Rolling_z"] = rep0[f"{default_rolling_var}_delta_z"].abs()
     rep0["Score_Rolling"] = score_from_z(rep0["Rolling_z"])
 
     rep0["Score_Replica"] = np.where(
@@ -529,6 +697,11 @@ def compute_scores(rep0, strict_missing_data=True, combine_rolling_vars=False, i
     active_weights = dict(QI_WEIGHTS)
     if not include_pca_in_qf:
         active_weights.pop("Score_PCA")
+    if not rhla_active:
+        active_weights.pop("Score_RhLa")
+    if not rhlainc_active:
+        active_weights.pop("Score_RhLaInc")
+    if len(active_weights) < len(QI_WEIGHTS):
         total_weight = sum(active_weights.values())
         active_weights = {k: v / total_weight for k, v in active_weights.items()}
 
@@ -676,12 +849,12 @@ def _evaluate_flag_count_mode(row, p95, p99, include_pca_in_qf):
     return qf, causes
 
 
-def compute_flags(rep0, p95, p99, include_pca_in_qf=False, use_count_mode=False):
+def compute_flags(rep0, p95, p99, include_pca_in_qf=False, use_count_mode=False, energy=DEFAULT_ENERGY):
     """
     Atribui Quality Flag (QF): 0=OK, 1=Atenção, 2=Suspeito, 3=Rejeitado,
     QF_INDETERMINATE (9)=indeterminado (dado crítico faltante — ver
-    CRITICAL_INPUT_COLS). Uma linha indeterminada nunca recebe 0-3: ou se
-    sabe o suficiente para classificar, ou se marca como indeterminada —
+    _critical_cols_for_energy). Uma linha indeterminada nunca recebe 0-3: ou
+    se sabe o suficiente para classificar, ou se marca como indeterminada —
     nunca se assume "OK" por omissão (ver TODO.md achado C2).
 
     include_pca_in_qf: se False (padrão), o critério pontual de Mahalanobis
@@ -696,10 +869,17 @@ def compute_flags(rep0, p95, p99, include_pca_in_qf=False, use_count_mode=False)
         contagem de módulos reprovados (OK/ALERT/CRITICAL por módulo,
         QF = f(nº de ALERTs, nº de CRITICALs), não compensatório — ver
         _evaluate_flag_count_mode). Em ambos os modos, uma linha com dado
-        crítico faltante (CRITICAL_INPUT_COLS) recebe QF_INDETERMINATE
+        crítico faltante (`_critical_cols_for_energy`) recebe QF_INDETERMINATE
         incondicionalmente, nunca QF=0 (ver TODO.md achado C2) — o modo de
         contagem não repete o bug do apêndice v4.2 (`classify_z`/
         `classify_rolling` tratando NaN como OK).
+
+    energy: "10kV"/"30kV"/"50kV" (ver ENERGY_PARAMETERS). Determina quais
+        colunas são críticas para esta energia — QC2/QC3 saem da lista
+        quando a energia não os mede (ver _critical_cols_for_energy):
+        nesse caso a linha nunca fica indeterminada por causa deles, já
+        que compute_scores já tratou o módulo como estruturalmente
+        inaplicável (score neutro, peso excluído do QI).
 
     Também preenche rep0["QF_Causes"]: string com os códigos de causa
     (CAUSE_*) que dispararam o flag daquela linha, separados por ";" — vazia
@@ -707,7 +887,8 @@ def compute_flags(rep0, p95, p99, include_pca_in_qf=False, use_count_mode=False)
     causas por intervalo em relatórios (ver report_pdf.detect_intervals).
     """
     rep0 = rep0.copy()
-    is_indeterminate = rep0[CRITICAL_INPUT_COLS].isna().any(axis=1) | rep0["QI"].isna()
+    critical_cols = _critical_cols_for_energy(energy)
+    is_indeterminate = rep0[critical_cols].isna().any(axis=1) | rep0["QI"].isna()
 
     flags = []
     causes = []
@@ -821,9 +1002,13 @@ def run_qc(
     include_pca_in_qf=False,
     use_count_mode=False,
     use_rolling_persistence=False,
+    energy=DEFAULT_ENERGY,
 ):
     """
-    Executa o pipeline QC completo sobre o DataFrame bruto.
+    Executa o pipeline QC completo sobre o DataFrame bruto de UMA aba/energia.
+    Num workbook multi-energia (10 kV/30 kV/50 kV — ver ENERGY_PARAMETERS/
+    detect_energy), chame run_qc uma vez por aba, com o `energy` detectado
+    para aquela aba.
 
     Args:
         strict_missing_data: ver compute_scores. Padrão True (conservador).
@@ -843,6 +1028,12 @@ def run_qc(
             janela de 3) antes do restante do pipeline, afetando
             automaticamente Score_Rolling e o critério de flag do QC4 nos
             dois modos de QF.
+        energy: "10kV"/"30kV"/"50kV" (ver ENERGY_PARAMETERS/detect_energy).
+            Padrão DEFAULT_ENERGY="10kV" — reproduz exatamente o
+            comportamento anterior a esta funcionalidade para quem não
+            especifica energia. Determina os parâmetros físicos usados por
+            QC1-QC4 (`ENERGY_PARAMETERS`) e as colunas obrigatórias/críticas
+            (`_required_columns_for_energy`/`_critical_cols_for_energy`).
 
     Retorna:
         rep0         : DataFrame com todos os campos QC calculados
@@ -865,10 +1056,10 @@ def run_qc(
     rep0 = rep0.sort_values(DEPTH_COL)
     rep0[DEPTH_COL] = rep0[DEPTH_COL].round(10)
 
-    rep0 = qc_throughput(rep0)
-    rep0 = qc_rh_la(rep0)
-    rep0 = qc_rh_la_inc(rep0)
-    rep0 = qc_rolling(rep0, use_rolling_persistence=use_rolling_persistence)
+    rep0 = qc_throughput(rep0, energy=energy)
+    rep0 = qc_rh_la(rep0, energy=energy)
+    rep0 = qc_rh_la_inc(rep0, energy=energy)
+    rep0 = qc_rolling(rep0, use_rolling_persistence=use_rolling_persistence, energy=energy)
     rep0 = qc_replicates(df, rep0)
     rep0, pca_elements = qc_pca(rep0)
     rep0, p95, p99 = compute_scores(
@@ -876,9 +1067,64 @@ def run_qc(
         strict_missing_data=strict_missing_data,
         combine_rolling_vars=combine_rolling_vars,
         include_pca_in_qf=include_pca_in_qf,
+        energy=energy,
     )
     rep0 = compute_flags(
-        rep0, p95, p99, include_pca_in_qf=include_pca_in_qf, use_count_mode=use_count_mode
+        rep0, p95, p99,
+        include_pca_in_qf=include_pca_in_qf,
+        use_count_mode=use_count_mode,
+        energy=energy,
     )
 
     return rep0, p95, p99, pca_elements
+
+
+# ============================================================
+# WORKBOOK MULTI-ENERGIA (leitura de abas)
+# ============================================================
+
+def read_workbook(file_or_buffer):
+    """
+    Lê todas as abas de um workbook Avaatech e detecta a energia de cada uma
+    pelo nome (protocolo v4.2, "io_module.py" — ver detect_energy). Não
+    executa check_file/run_qc — só localiza e classifica as abas; a
+    validação/cálculo continuam sendo feitos aba a aba pelo chamador (ver
+    qc_avaatech.py), mantendo check_file/run_qc como funções de uma única
+    aba/energia por vez.
+
+    Se uma aba tiver energia não reconhecida pelo nome:
+      - Se o workbook tiver só essa aba, assume DEFAULT_ENERGY ("10kV") —
+        preserva compatibilidade com arquivos de aba única cujo nome não
+        segue a convenção "10kV"/"30kV"/"50kV" (ex. exports mais antigos).
+      - Se houver outras abas no workbook, a aba é ignorada (listada em
+        `skipped`) — não há como inferir seu papel com segurança num
+        contexto multi-energia (mesma filosofia de "pular sem travar" do
+        `io_module.py` do apêndice, mas sem silenciar via print: quem chama
+        decide como avisar o usuário).
+
+    Retorna:
+        sheets  : list[dict] — um por aba processável, com "sheet_name",
+                  "energy", "df" (DataFrame bruto, sem nenhum filtro).
+        skipped : list[str] — nomes de abas ignoradas por energia não
+                  reconhecida (só ocorre em workbooks com múltiplas abas).
+    """
+    xls = pd.ExcelFile(file_or_buffer)
+    sheet_names = xls.sheet_names
+    sheets = []
+    skipped = []
+    for name in sheet_names:
+        try:
+            energy = detect_energy(name)
+        except ValueError:
+            if len(sheet_names) == 1:
+                energy = DEFAULT_ENERGY
+            else:
+                skipped.append(name)
+                continue
+        # Reaproveita o ExcelFile já aberto (xls.parse) em vez de reabrir
+        # file_or_buffer por aba — evita depender de seek(0) automático em
+        # objetos file-like que já foram lidos uma vez (ex. o buffer de
+        # upload do Streamlit).
+        df = xls.parse(sheet_name=name)
+        sheets.append({"sheet_name": name, "energy": energy, "df": df})
+    return sheets, skipped

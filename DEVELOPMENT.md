@@ -964,7 +964,7 @@ Comparação entre o protocolo acima e a implementação atual (`qc_core.py`/`qc
 
 #### 6. Estrutura multi-energia (10/30/50 kV) e detecção automática
 
-**Em aberto, não classificável ainda** — todo o `io_module.py` do v4.2 assume um workbook com múltiplas abas nomeadas por energia e parâmetros diferentes por energia. O arquivo de exemplo atual só tem uma aba (`10kv`), e `qc_avaatech.py:190` lê com `pd.read_excel(uploaded)` sem `sheet_name` — pega só a primeira aba silenciosamente (item 3.1 do TODO). **Pergunta para o time:** os arquivos reais do LAM+ chegam com múltiplas abas de energia, ou é cenário futuro/outro equipamento? Se sim, é mudança arquitetural grande, não ajuste pontual.
+✅ **INCORPORADO em 2026-07-28** — confirmado pelo usuário que arquivos reais sempre têm pelo menos 10 kV e 30 kV (50 kV opcional). `ENERGY_PARAMETERS`/`detect_energy` (`qc_core.py`) reproduzem `config.py`/`io_module.py` do apêndice; `read_workbook` lê todas as abas e detecta a energia de cada uma pelo nome. Todas as funções do pipeline ganharam parâmetro `energy=DEFAULT_ENERGY` ("10kV"), preservando o comportamento anterior byte a byte quando não especificado. **Descoberta relevante durante a validação:** `data/Dados Consolidados-ICCE3.xlsx` — usado em várias validações anteriores deste documento/TODO.md como exemplo de "testemunho de seção única" — na verdade é um workbook multi-energia real com 3 abas (`10kV`/`30kV`/`50kV`); a limitação do item 3.1 (`pd.read_excel` sem `sheet_name` só lê a primeira aba) fazia essas validações lerem, sem se perceber, apenas a aba `10kV`. Ver `TODO.md`, seção 9, item "Estrutura multi-energia" para detalhes completos e validação.
 
 #### 7. Quality Flag — filosofia de agregação
 
@@ -998,7 +998,7 @@ A diferença mais profunda entre os dois documentos.
 | 7 | Casamento de réplica por igualdade exata de profundidade | **DESCARTAR (crítico — regride achado C1)** |
 | 8 | `rpd()` com `mean==0` → NaN | **INCORPORAR (correção direta do TODO 1.1)** |
 | 9 | Thresholds discretos de RPD (10%/20%) | **MODIFICAR — só se item 12 for adotado** |
-| 10 | Estrutura multi-energia (abas 10/30/50 kV) | **EM ABERTO — pergunta para o time** |
+| 10 | Estrutura multi-energia (abas 10/30/50 kV) | ✅ **INCORPORADO (2026-07-28)** — `ENERGY_PARAMETERS`/`detect_energy`/`read_workbook`; ver `TODO.md`, seção 9 |
 | 11 | NaN → sempre "OK" nos estados discretos | **DESCARTAR (crítico — regride achado C2)** |
 | 12 | QF por contagem de módulos reprovados | ✅ **INCORPORADO (2026-07-28)** — item 8.7/seção 9(e) do `TODO.md` |
 | 13 | Preenchimento de cor no Excel exportado | **INCORPORAR** |
