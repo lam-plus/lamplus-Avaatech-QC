@@ -1000,7 +1000,7 @@ A diferença mais profunda entre os dois documentos.
 | 9 | Thresholds discretos de RPD (10%/20%) | **MODIFICAR — só se item 12 for adotado** |
 | 10 | Estrutura multi-energia (abas 10/30/50 kV) | **EM ABERTO — pergunta para o time** |
 | 11 | NaN → sempre "OK" nos estados discretos | **DESCARTAR (crítico — regride achado C2)** |
-| 12 | QF por contagem de módulos reprovados | **INCORPORAR (é o item 8.7 do TODO, já planejado)** |
+| 12 | QF por contagem de módulos reprovados | ✅ **INCORPORADO (2026-07-28)** — item 8.7/seção 9(e) do `TODO.md` |
 | 13 | Preenchimento de cor no Excel exportado | **INCORPORAR** |
 | 14 | QC_Summary.txt | **MANTER PDF atual; TXT como complemento opcional** |
 | 15 | Exportar réplicas brutas junto no `.xlsx` | **MODIFICAR — confirmar com usuário** |

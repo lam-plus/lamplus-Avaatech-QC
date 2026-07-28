@@ -131,6 +131,29 @@ CAUSE_ROLLING = "rolling"
 CAUSE_PCA = "pca"
 CAUSE_QI_LOW = "qi_low"
 CAUSE_MISSING_DATA = "missing_data"
+# Só usada no modo de contagem (use_count_mode) — no modo QI ponderado,
+# réplicas influenciam apenas o QI (Score_Replica), sem critério pontual
+# próprio em compute_flags, então nunca precisaram de uma causa dedicada.
+CAUSE_REPLICA = "replica"
+
+# ------------------------------------------------------------------------
+# Modo alternativo de QF por contagem de módulos reprovados (protocolo v4.2,
+# seção 11/apêndice `qc.py` — ver DEVELOPMENT.md). Opt-in via
+# use_count_mode em compute_flags/run_qc; o modo QI ponderado continua
+# sendo o default. Limiares próprios do protocolo v4.2 — distintos dos
+# limiares (2/3) usados internamente pelo modo QI ponderado, que não são
+# alterados por esta adição.
+QC_OK = "OK"
+QC_ALERT = "ALERT"
+QC_CRITICAL = "CRITICAL"
+
+COUNT_MODE_Z_WARNING = 2.5
+COUNT_MODE_Z_CRITICAL = 3.5
+# QC4 no modo de contagem só tem OK/ALERT (sem CRITICAL), conforme o
+# protocolo v4.2 (classify_rolling do apêndice).
+COUNT_MODE_ROLLING_Z_ALERT = 4.0
+COUNT_MODE_RPD_WARNING = 10.0
+COUNT_MODE_RPD_CRITICAL = 20.0
 
 # ============================================================
 # FUNÇÕES ESTATÍSTICAS
@@ -443,7 +466,131 @@ def compute_scores(rep0, strict_missing_data=True, combine_rolling_vars=False, i
 # QUALITY FLAG
 # ============================================================
 
-def compute_flags(rep0, p95, p99, include_pca_in_qf=False):
+def _classify_z_count_mode(z):
+    """
+    OK/ALERT/CRITICAL a partir de um z-score, limiares do protocolo v4.2
+    (COUNT_MODE_Z_WARNING/CRITICAL). Usada para Instrument_z/RhLa_z/
+    RhLaInc_z: NaN vira OK aqui sem regredir o achado C2 porque essas
+    colunas vêm de CRITICAL_INPUT_COLS — uma linha com qualquer uma delas
+    faltante já foi desviada para QF_INDETERMINATE em compute_flags antes
+    desta função ser chamada, então NaN nunca chega até aqui de fato.
+    """
+    if pd.isna(z):
+        return QC_OK
+    z = abs(z)
+    if z >= COUNT_MODE_Z_CRITICAL:
+        return QC_CRITICAL
+    if z >= COUNT_MODE_Z_WARNING:
+        return QC_ALERT
+    return QC_OK
+
+
+def _classify_rolling_count_mode(z):
+    """OK/ALERT (sem CRITICAL) a partir do Rolling_z já calculado em compute_scores."""
+    if pd.isna(z):
+        return QC_OK
+    if abs(z) >= COUNT_MODE_ROLLING_Z_ALERT:
+        return QC_ALERT
+    return QC_OK
+
+
+def _classify_rpd_count_mode(mean_rpd):
+    """
+    OK/ALERT/CRITICAL a partir de Mean_RPD, limiares do protocolo v4.2.
+    NaN (nenhuma réplica casada nesta posição) vira OK — ausência legítima
+    de réplica, mesmo padrão de fallback já usado em Score_Replica (ver
+    compute_scores), não um caso de dado faltante crítico.
+    """
+    if pd.isna(mean_rpd):
+        return QC_OK
+    if mean_rpd >= COUNT_MODE_RPD_CRITICAL:
+        return QC_CRITICAL
+    if mean_rpd >= COUNT_MODE_RPD_WARNING:
+        return QC_ALERT
+    return QC_OK
+
+
+def _classify_mahalanobis_count_mode(value, p95, p99):
+    """
+    OK/ALERT/CRITICAL a partir da distância de Mahalanobis vs. p95/p99.
+    NaN (PCA pulada para o arquivo inteiro, ou linha fora do critério) vira
+    OK — mesmo padrão neutro de Score_PCA quando a PCA não é aplicável.
+    """
+    if pd.isna(value) or pd.isna(p95) or pd.isna(p99):
+        return QC_OK
+    if value > p99:
+        return QC_CRITICAL
+    if value > p95:
+        return QC_ALERT
+    return QC_OK
+
+
+def _evaluate_flag_count_mode(row, p95, p99, include_pca_in_qf):
+    """
+    QF por contagem de módulos reprovados (protocolo v4.2, `evaluate_flag`
+    do apêndice): QF0 sem alerta, QF1 = 1 ALERT, QF2 = 2-3 ALERTs ou 1
+    CRITICAL, QF3 = 2+ CRITICALs ou 4+ ALERTs. Não compensatório — ao
+    contrário do QI ponderado, um módulo muito bom não neutraliza outro
+    ruim.
+
+    include_pca_in_qf: mesmo padrão do modo QI ponderado — quando False, a
+    PCA fica de fora da contagem (módulo puramente diagnóstico), em vez de
+    virar um 6º módulo do protocolo v4.2 original (que não previa PCA).
+    """
+    causes = []
+    states = {}
+
+    instrument_state = _classify_z_count_mode(row["Instrument_z"])
+    states["instrument"] = instrument_state
+    if instrument_state != QC_OK:
+        argon_z = row["Argon_z"]
+        if pd.notna(argon_z) and abs(argon_z) > abs(row["Throughput_z"]):
+            causes.append(CAUSE_ARGON)
+        else:
+            causes.append(CAUSE_THROUGHPUT)
+
+    coherent_state = _classify_z_count_mode(row["RhLa_z"])
+    states["coherent"] = coherent_state
+    if coherent_state != QC_OK:
+        causes.append(CAUSE_RH_LA)
+
+    incoherent_state = _classify_z_count_mode(row["RhLaInc_z"])
+    states["incoherent"] = incoherent_state
+    if incoherent_state != QC_OK:
+        causes.append(CAUSE_RH_LA_INC)
+
+    rolling_state = _classify_rolling_count_mode(row["Rolling_z"])
+    states["rolling"] = rolling_state
+    if rolling_state != QC_OK:
+        causes.append(CAUSE_ROLLING)
+
+    replica_state = _classify_rpd_count_mode(row["Mean_RPD"])
+    states["replica"] = replica_state
+    if replica_state != QC_OK:
+        causes.append(CAUSE_REPLICA)
+
+    if include_pca_in_qf:
+        pca_state = _classify_mahalanobis_count_mode(row["Mahalanobis"], p95, p99)
+        states["pca"] = pca_state
+        if pca_state != QC_OK:
+            causes.append(CAUSE_PCA)
+
+    alerts = [name for name, s in states.items() if s == QC_ALERT]
+    criticals = [name for name, s in states.items() if s == QC_CRITICAL]
+
+    if len(alerts) == 0 and len(criticals) == 0:
+        qf = 0
+    elif len(alerts) == 1 and len(criticals) == 0:
+        qf = 1
+    elif len(criticals) >= 2 or len(alerts) >= 4:
+        qf = 3
+    else:
+        qf = 2
+
+    return qf, causes
+
+
+def compute_flags(rep0, p95, p99, include_pca_in_qf=False, use_count_mode=False):
     """
     Atribui Quality Flag (QF): 0=OK, 1=Atenção, 2=Suspeito, 3=Rejeitado,
     QF_INDETERMINATE (9)=indeterminado (dado crítico faltante — ver
@@ -454,7 +601,19 @@ def compute_flags(rep0, p95, p99, include_pca_in_qf=False):
     include_pca_in_qf: se False (padrão), o critério pontual de Mahalanobis
         (anomalia multivariada) não contribui para QF — consistente com
         Score_PCA também excluído do QI em compute_scores. PCA permanece um
-        módulo de diagnóstico exploratório, não um critério de flag.
+        módulo de diagnóstico exploratório, não um critério de flag. Vale
+        para os dois modos (use_count_mode=True ou False).
+
+    use_count_mode: se False (padrão), usa o modo QI ponderado (limiares de
+        z-score/QI + critérios pontuais, comportamento histórico desta
+        função). Se True, usa o modo alternativo do protocolo v4.2 —
+        contagem de módulos reprovados (OK/ALERT/CRITICAL por módulo,
+        QF = f(nº de ALERTs, nº de CRITICALs), não compensatório — ver
+        _evaluate_flag_count_mode). Em ambos os modos, uma linha com dado
+        crítico faltante (CRITICAL_INPUT_COLS) recebe QF_INDETERMINATE
+        incondicionalmente, nunca QF=0 (ver TODO.md achado C2) — o modo de
+        contagem não repete o bug do apêndice v4.2 (`classify_z`/
+        `classify_rolling` tratando NaN como OK).
 
     Também preenche rep0["QF_Causes"]: string com os códigos de causa
     (CAUSE_*) que dispararam o flag daquela linha, separados por ";" — vazia
@@ -470,6 +629,12 @@ def compute_flags(rep0, p95, p99, include_pca_in_qf=False):
         if is_indeterminate.loc[idx]:
             flags.append(QF_INDETERMINATE)
             causes.append(CAUSE_MISSING_DATA)
+            continue
+
+        if use_count_mode:
+            qf, row_causes = _evaluate_flag_count_mode(row, p95, p99, include_pca_in_qf)
+            flags.append(qf)
+            causes.append(";".join(row_causes))
             continue
 
         qf = 0
@@ -563,7 +728,13 @@ def add_pointwise_flag_notes(rep0, lang="pt"):
 # PIPELINE COMPLETO
 # ============================================================
 
-def run_qc(df, strict_missing_data=True, combine_rolling_vars=False, include_pca_in_qf=False):
+def run_qc(
+    df,
+    strict_missing_data=True,
+    combine_rolling_vars=False,
+    include_pca_in_qf=False,
+    use_count_mode=False,
+):
     """
     Executa o pipeline QC completo sobre o DataFrame bruto.
 
@@ -572,6 +743,12 @@ def run_qc(df, strict_missing_data=True, combine_rolling_vars=False, include_pca
         combine_rolling_vars: ver compute_scores. Padrão False (só Rh-Lα-Inc).
         include_pca_in_qf: ver compute_scores/compute_flags. Padrão False
             (PCA é só diagnóstico, não entra no QI/QF).
+        use_count_mode: ver compute_flags. Padrão False (modo QI ponderado,
+            comportamento histórico). Se True, usa o modo alternativo do
+            protocolo v4.2 (contagem de módulos ALERT/CRITICAL). O QI
+            continua sendo calculado normalmente em ambos os modos (só o
+            critério de atribuição do QF muda) — permanece disponível como
+            diagnóstico mesmo quando não é ele quem decide o QF.
 
     Retorna:
         rep0         : DataFrame com todos os campos QC calculados
@@ -595,6 +772,8 @@ def run_qc(df, strict_missing_data=True, combine_rolling_vars=False, include_pca
         combine_rolling_vars=combine_rolling_vars,
         include_pca_in_qf=include_pca_in_qf,
     )
-    rep0 = compute_flags(rep0, p95, p99, include_pca_in_qf=include_pca_in_qf)
+    rep0 = compute_flags(
+        rep0, p95, p99, include_pca_in_qf=include_pca_in_qf, use_count_mode=use_count_mode
+    )
 
     return rep0, p95, p99, pca_elements
