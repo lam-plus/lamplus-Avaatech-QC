@@ -146,7 +146,10 @@ def calculate_rpd(values):
     values = values[~np.isnan(values)]
     if len(values) < 2:
         return np.nan
-    return np.abs(values.max() - values.min()) / np.abs(values.mean()) * 100
+    mean = values.mean()
+    if mean == 0:
+        return np.nan
+    return np.abs(values.max() - values.min()) / np.abs(mean) * 100
 
 
 # ============================================================

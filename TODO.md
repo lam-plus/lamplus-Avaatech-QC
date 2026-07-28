@@ -40,7 +40,7 @@ Estes dois itens não são hipóteses — foram reproduzidos rodando `run_qc()` 
 
 | # | Arquivo:linha | Problema | Sugestão |
 |---|---|---|---|
-| 1.1 | `qc_core.py:143-149` (`calculate_rpd`) | Se `values.mean()` for 0 (ex.: valores positivos e negativos se cancelando, ou todos zero), a divisão produz `inf`, não `NaN`. Esse `inf` se propaga para `Mean_RPD` e gerou de fato um `RuntimeWarning: invalid value encountered in maximum` ao rodar o pipeline no arquivo de exemplo (em `compute_scores:226`, `np.maximum(0, 100 - Mean_RPD*4)`). | Tratar explicitamente `mean == 0` retornando `NaN` (ou um valor sentinela), e silenciar/registrar o warning com contexto em vez de deixá-lo vazar para o console do Streamlit. |
+| 1.1 | ~~`qc_core.py` (`calculate_rpd`)~~ | ✅ **Resolvido em 2026-07-28** (incorporado do protocolo v4.2 do Igor — ver `DEVELOPMENT.md`, seção "Protocolo v4.2"). `mean == 0` agora retorna `NaN` explicitamente antes da divisão, em vez de propagar `inf` para `Mean_RPD`. Validado: `calculate_rpd([10, -10])` e `calculate_rpd([0, 0, 0])` retornam `NaN`; pipeline completo rodado contra `data/exemplo_dados_consolidados.xlsx` com `-W error::RuntimeWarning` sem levantar warning, distribuição de QF idêntica à anterior (`{0:208, 2:45, 3:17}`) — sem regressão. | — |
 | 1.2 | ~~`qc_core.py` (`qc_pca`)~~ | ✅ **Resolvido em 2026-06-28** junto com o item 2.2: `qc_pca` agora valida `len(pca_elements) >= MIN_PCA_ELEMENTS` e `len(rep0) >= MIN_PCA_ROWS` antes de chamar `PCA`; se insuficiente, pula QC6 (PC1/PC2/Mahalanobis ficam NaN) em vez de lançar `ValueError`. | — |
 | 1.3 | ~~`qc_core.py` (`qc_pca`)~~ | ✅ **Resolvido em 2026-06-28**: `np.linalg.inv(cov)` trocado por `np.linalg.pinv(cov)`. | — |
 | 1.4 | `qc_core.py:350-354` (`compute_scores`) | Réplica ausente (`Mean_RPD` NaN) é tratada como nota 100 (perfeita) — ver achado **C1**. Isso é uma escolha de design questionável mesmo fora do bug de casamento de profundidade: penalizar pela ausência do dado seria mais conservador para um pipeline de QC. | Discutir com o time se a ausência de réplica deveria reduzir o `Score_Replica` (ex.: nota neutra ~60-70) em vez de nota máxima. |
@@ -209,6 +209,30 @@ Pedido e implementado em 2026-06-29: diretório `installer/` empacota o app como
 
 ---
 
+## 9. Protocolo v4.2 (Igor) — itens priorizados de incorporação
+
+**Origem:** análise comparativa entre o protocolo v4.2 e o pipeline atual, feita em 2026-07-28. Texto completo do protocolo + tabela-síntese com todas as classificações (INCORPORAR/MODIFICAR/MANTER/DESCARTAR) e as notas de cada item estão em `DEVELOPMENT.md`, seção "Protocolo v4.2 — Análise e Roadmap de Incorporação".
+
+### Itens prontos para implementação, na ordem sugerida
+
+| Ordem | Item | Descrição |
+|---|---|---|
+| a | ~~Correção `calculate_rpd` (`mean==0` → `NaN`)~~ | ✅ **Implementado em 2026-07-28** — ver item 1.1 acima. |
+| b | Argônio (`Ar-Ka Area`) em QC1 e QC4 | Adicionar Argônio como segunda variável do QC1 (combinado com Throughput — pior dos dois), e incluir no conjunto de variáveis do QC4/rolling. Coluna confirmada presente no arquivo de exemplo real (`data/exemplo_dados_consolidados.xlsx`), hoje totalmente ignorada. |
+| c | Coloração verde/amarelo/vermelho no `.xlsx` exportado | `openpyxl.PatternFill` por QF/estado em `to_excel_bytes` (`qc_avaatech.py`) — sem dependência nova, openpyxl já em uso. |
+| d | Labels "Coherent Scatter"/"Incoherent Scatter" como chaves i18n | Novas chaves em `locales/pt.json`/`en.json` para os nomes conceituais do v4.2 (QC2/QC3), sem alterar a lógica de `qc_rh_la`/`qc_rh_la_inc`. |
+| e | Modo de QF por contagem de módulos reprovados (opt-in) | Implementa o item 8.7 já registrado abaixo — segundo modo de cálculo de QF (contagem de ALERT/CRITICAL por módulo, especificação do v4.2), como alternativa opt-in ao QI ponderado atual (que continua default). **Atenção:** a lógica de NaN→estado deve produzir indeterminado (`QF_INDETERMINATE`), nunca "OK" — não repetir o bug do achado C2, que o v4.2 original reintroduz (`classify_z`/`classify_rolling` tratam NaN como OK). |
+
+### Bloqueados até decisão do time
+
+Estes itens do v4.2 têm mérito mas tensionam com decisões de design já tomadas e documentadas — **não implementar sem alinhamento explícito com Igor/equipe**:
+
+- **Persistência temporal no QC4** (exigir ≥2 pontos consecutivos ou 2 pontos numa janela de 3 antes de emitir ALERT) — conflita com a decisão registrada no item 1.5 acima, de considerar um único z-score pontual alto como flag legítimo ("defesa em profundidade"), hoje só explicado via `is_pointwise_flag`/`Pointwise_Flag_Note` em vez de suprimido.
+- **Estrutura multi-energia** (abas 10/30/50 kV, parâmetros por energia) — depende de confirmação se os arquivos reais do LAM+ chegam com múltiplas abas de energia ou se isso é cenário futuro/outro equipamento. O arquivo de exemplo atual só tem uma aba (`10kv`).
+- **Exportar réplicas brutas (Rep1/Rep2) junto no `.xlsx`** — hoje o export contém só o subconjunto `rep0` filtrado; preservar as réplicas brutas mudaria o escopo do que o arquivo exportado representa.
+
+---
+
 ## Resumo de prioridade sugerida
 
 1. ~~**C1**~~ e ~~**C2**~~ ✅ ambos resolvidos (2026-06-28) — os dois riscos de integridade científica dos resultados (réplicas não casadas e dado faltante mascarado como "OK") estão corrigidos e validados contra dados reais.
@@ -217,3 +241,4 @@ Pedido e implementado em 2026-06-29: diretório `installer/` empacota o app como
 4. ~~**8.6**~~ ✅ resolvido (2026-06-28) — PCA (QC6) é só diagnóstico por padrão, não entra no QI/QF; checkbox opt-in reativa os dois caminhos (peso no QI + checagem direta de Mahalanobis em `compute_flags`). README atualizado ("About QC6").
 5. ~~**8.8**~~ ✅ resolvido (2026-06-29) — empacotamento standalone via PyInstaller (`installer/`), testado de ponta a ponta no Windows; `.exe` nunca commitado, distribuição via GitHub Releases.
 6. Demais itens são robustez/performance/qualidade incrementais, sem risco de resultado incorreto.
+7. **Seção 9** (protocolo v4.2 do Igor) registra os próximos itens priorizados a implementar (a-e) e os que estão bloqueados até decisão do time — ver acima.
