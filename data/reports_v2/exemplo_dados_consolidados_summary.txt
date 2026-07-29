@@ -1,0 +1,34 @@
+Arquivo: exemplo_dados_consolidados.xlsx
+
+Energia 10kV:
+  n(Rep0) = 270
+  QF0: 229 | QF1: 20 | QF2: 21 | QF3: 0 | INDETERMINATE: 0
+  ALERT/CRITICAL por módulo:
+    QC1_State: ALERT=14 CRITICAL=7
+    QC2_State: ALERT=1 CRITICAL=0
+    QC3_State: ALERT=13 CRITICAL=9
+    QC4_State: ALERT=11 CRITICAL=0
+    QC5_State: ALERT=0 CRITICAL=0
+
+Profundidades com Review=YES:
+  [10kV/10kv] depth=107.8 — causa: incoherent; evidências: rolling
+  [10kV/10kv] depth=117.8 — causa: throughput; evidências: rolling
+  [10kV/10kv] depth=127.8 — causa: incoherent; evidências: throughput;rolling
+  [10kV/10kv] depth=137.8 — causa: argon; evidências: rolling
+  [10kV/10kv] depth=147.8 — causa: throughput; evidências: rolling
+  [10kV/10kv] depth=157.8 — causa: throughput; evidências: incoherent
+  [10kV/10kv] depth=387.8 — causa: argon; evidências: -
+  [10kV/10kv] depth=397.8 — causa: argon; evidências: -
+  [10kV/10kv] depth=407.8 — causa: argon; evidências: -
+  [10kV/10kv] depth=437.8 — causa: argon; evidências: incoherent
+  [10kV/10kv] depth=462.9 — causa: argon; evidências: -
+  [10kV/10kv] depth=864.7 — causa: argon; evidências: -
+  [10kV/10kv] depth=884.7 — causa: incoherent; evidências: rolling
+  [10kV/10kv] depth=890.6 — causa: incoherent; evidências: rolling
+  [10kV/10kv] depth=1130.5 — causa: incoherent; evidências: -
+  [10kV/10kv] depth=1389.1 — causa: argon; evidências: -
+  [10kV/10kv] depth=1769.0 — causa: incoherent; evidências: rolling
+  [10kV/10kv] depth=1829.0 — causa: argon; evidências: -
+  [10kV/10kv] depth=1963.5 — causa: incoherent; evidências: rolling
+  [10kV/10kv] depth=2173.5 — causa: incoherent; evidências: rolling
+  [10kV/10kv] depth=2595.5 — causa: incoherent; evidências: rolling

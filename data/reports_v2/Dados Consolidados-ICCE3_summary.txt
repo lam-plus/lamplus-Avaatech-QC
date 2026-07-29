@@ -1,0 +1,58 @@
+Arquivo: Dados Consolidados-ICCE3.xlsx
+
+Energia 10kV:
+  n(Rep0) = 65
+  QF0: 54 | QF1: 4 | QF2: 7 | QF3: 0 | INDETERMINATE: 0
+  ALERT/CRITICAL por módulo:
+    QC1_State: ALERT=3 CRITICAL=6
+    QC2_State: ALERT=0 CRITICAL=0
+    QC3_State: ALERT=1 CRITICAL=1
+    QC4_State: ALERT=0 CRITICAL=0
+    QC5_State: ALERT=0 CRITICAL=0
+
+Energia 30kV:
+  n(Rep0) = 65
+  QF0: 50 | QF1: 6 | QF2: 7 | QF3: 2 | INDETERMINATE: 0
+  ALERT/CRITICAL por módulo:
+    QC1_State: ALERT=9 CRITICAL=0
+    QC2_State: ALERT=2 CRITICAL=9
+    QC3_State: ALERT=7 CRITICAL=2
+    QC4_State: ALERT=3 CRITICAL=0
+    QC5_State: ALERT=0 CRITICAL=0
+
+Energia 50kV:
+  n(Rep0) = 65
+  QF0: 54 | QF1: 2 | QF2: 9 | QF3: 0 | INDETERMINATE: 0
+  ALERT/CRITICAL por módulo:
+    QC1_State: ALERT=2 CRITICAL=9
+    QC2_State: ALERT=0 CRITICAL=0
+    QC3_State: ALERT=0 CRITICAL=0
+    QC4_State: ALERT=0 CRITICAL=0
+    QC5_State: ALERT=0 CRITICAL=0
+
+Profundidades com Review=YES:
+  [10kV/10kV] depth=150.3 — causa: incoherent; evidências: -
+  [10kV/10kV] depth=490.3 — causa: argon; evidências: -
+  [10kV/10kV] depth=500.3 — causa: argon; evidências: -
+  [10kV/10kV] depth=530.3 — causa: argon; evidências: -
+  [10kV/10kV] depth=540.3 — causa: argon; evidências: -
+  [10kV/10kV] depth=550.3 — causa: argon; evidências: -
+  [10kV/10kV] depth=560.3 — causa: argon; evidências: -
+  [30kV/30kV] depth=480.3 — causa: coherent; evidências: throughput
+  [30kV/30kV] depth=490.3 — causa: coherent; evidências: throughput;incoherent
+  [30kV/30kV] depth=500.3 — causa: coherent; evidências: throughput;incoherent
+  [30kV/30kV] depth=510.3 — causa: coherent; evidências: throughput;incoherent
+  [30kV/30kV] depth=520.3 — causa: coherent; evidências: throughput;incoherent
+  [30kV/30kV] depth=530.3 — causa: coherent; evidências: incoherent;throughput
+  [30kV/30kV] depth=540.3 — causa: coherent; evidências: throughput;incoherent
+  [30kV/30kV] depth=550.3 — causa: coherent; evidências: incoherent;throughput
+  [30kV/30kV] depth=560.3 — causa: coherent; evidências: throughput;incoherent
+  [50kV/50kV] depth=480.3 — causa: throughput; evidências: -
+  [50kV/50kV] depth=490.3 — causa: throughput; evidências: -
+  [50kV/50kV] depth=500.3 — causa: throughput; evidências: -
+  [50kV/50kV] depth=510.3 — causa: throughput; evidências: -
+  [50kV/50kV] depth=520.3 — causa: throughput; evidências: -
+  [50kV/50kV] depth=530.3 — causa: throughput; evidências: -
+  [50kV/50kV] depth=540.3 — causa: throughput; evidências: -
+  [50kV/50kV] depth=550.3 — causa: throughput; evidências: -
+  [50kV/50kV] depth=560.3 — causa: throughput; evidências: -

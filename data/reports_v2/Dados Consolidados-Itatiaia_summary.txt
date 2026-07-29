@@ -1,0 +1,31 @@
+Arquivo: Dados Consolidados-Itatiaia.xlsx
+
+Energia 10kV:
+  n(Rep0) = 77
+  QF0: 74 | QF1: 1 | QF2: 2 | QF3: 0 | INDETERMINATE: 0
+  ALERT/CRITICAL por módulo:
+    QC1_State: ALERT=0 CRITICAL=0
+    QC2_State: ALERT=0 CRITICAL=0
+    QC3_State: ALERT=3 CRITICAL=0
+    QC4_State: ALERT=2 CRITICAL=0
+    QC5_State: ALERT=0 CRITICAL=0
+
+Energia 30kV:
+  n(Rep0) = 77
+  QF0: 67 | QF1: 4 | QF2: 5 | QF3: 1 | INDETERMINATE: 0
+  ALERT/CRITICAL por módulo:
+    QC1_State: ALERT=4 CRITICAL=5
+    QC2_State: ALERT=2 CRITICAL=1
+    QC3_State: ALERT=1 CRITICAL=0
+    QC4_State: ALERT=4 CRITICAL=0
+    QC5_State: ALERT=0 CRITICAL=0
+
+Profundidades com Review=YES:
+  [10kV/10kV] depth=207.3 — causa: incoherent; evidências: rolling
+  [10kV/10kV] depth=277.3 — causa: incoherent; evidências: rolling
+  [30kV/30kV] depth=157.3 — causa: throughput; evidências: coherent;incoherent;rolling
+  [30kV/30kV] depth=167.3 — causa: throughput; evidências: coherent
+  [30kV/30kV] depth=177.3 — causa: throughput; evidências: rolling
+  [30kV/30kV] depth=197.3 — causa: throughput; evidências: -
+  [30kV/30kV] depth=227.3 — causa: throughput; evidências: -
+  [30kV/30kV] depth=237.3 — causa: throughput; evidências: coherent;rolling
