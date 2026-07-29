@@ -100,24 +100,70 @@ pendências da versão anterior estão em `LEGACY/TODO.md`.
 
 ## 4. Saída
 
-- [ ] Exportar resultados em Excel.
-- [ ] Preservar as colunas originais.
-- [ ] Adicionar colunas de QC.
-- [ ] Adicionar uma aba de intervalos sinalizados.
-- [ ] Gerar um resumo simples.
+- [x] Exportar resultados em Excel. (Etapa 6 —
+      `qc_reports.build_excel_report`: uma aba de saída por aba processada,
+      preservando o nome original da aba.)
+- [x] Preservar as colunas originais. (Etapa 6 — colunas originais do
+      instrumento copiadas intactas e na ordem original; colunas QC
+      (`QC_EXPORT_COLUMNS`) só são acrescentadas ao final, nunca
+      substituem/alteram as originais.)
+- [x] Adicionar colunas de QC. (Etapa 6 — `QC1_State..QC5_State`,
+      `QF_Cause`, `QF_Evidence`, `QualityFlag` (rótulo textual de `QF` via
+      `format_quality_flag`: "QF0".."QF3"/"INDETERMINATE") e `Review`.
+      Saída deliberadamente reduzida a este conjunto — colunas
+      intermediárias do cálculo (z-scores, `Mean_RPD`,
+      `QC_Module_States`, contagens) ficam só no `rep0` interno de
+      `qc_core.run_qc`, não no Excel de saída, para manter a saída
+      "direta e rastreável" (DEVELOPMENT.md 4.1). Coloração condicional
+      verde/amarelo/vermelho restrita às colunas QC, nunca nas originais
+      — verificado inclusive quando uma coluna original tem valores que
+      coincidem textualmente com um estado QC.)
+- [x] Adicionar uma aba de intervalos sinalizados. (Etapa 6 — aba
+      "Flagged_Intervals": todas as linhas `Review="YES"` de todas as
+      abas processadas, concatenadas e identificadas por `Sheet`/`Energy`.)
+- [x] Gerar um resumo simples. (Etapa 6 — `qc_reports.build_summary` +
+      `format_summary_text`: nome do arquivo; por energia, `n(Rep0)`,
+      distribuição QF0-QF3/INDETERMINATE e contagem de ALERT/CRITICAL por
+      módulo (abas com a mesma energia são agregadas juntas); lista de
+      profundidades com `Review=YES` com causa principal e evidências.)
 
 ## 5. Interface mínima
 
-- [ ] Implementar upload de arquivo.
-- [ ] Implementar seleção do arquivo de entrada.
-- [ ] Executar o processamento.
-- [ ] Exibir um resumo dos resultados.
-- [ ] Disponibilizar o download.
-- [ ] Manter opções avançadas fora da interface inicial.
+- [x] Implementar upload de arquivo. (Etapa 6 — `qc_avaatech.py`:
+      `st.file_uploader` para o workbook `.xlsx`.)
+- [x] Implementar seleção do arquivo de entrada. (Etapa 6 — não há
+      seleção adicional além do upload: `qc_io.read_workbook` já detecta
+      todas as abas/energias do arquivo enviado, sem seletor de aba
+      separado — mantém a interface simples, ver DEVELOPMENT.md 4.1.)
+- [x] Executar o processamento. (Etapa 6 — `check_columns` roda por aba
+      antes do botão "Executar QC" ficar disponível: erros bloqueiam
+      aquela aba (nunca entra no pipeline), avisos aparecem mas não
+      impedem; `run_qc` só roda para as abas validadas, ao clicar no
+      botão. Resultado guardado em `st.session_state` para sobreviver aos
+      reruns disparados pelos botões de download.)
+- [x] Exibir um resumo dos resultados. (Etapa 6 — métricas por energia
+      (`n(Rep0)`, QF0-QF3, INDETERMINATE) via `st.metric` + tabela
+      completa (`st.dataframe`) por aba processada.)
+- [x] Disponibilizar o download. (Etapa 6 — dois `st.download_button`:
+      Excel de saída (`qc_reports.build_excel_report`) e resumo em texto
+      (`qc_reports.format_summary_text`).)
+- [x] Manter opções avançadas fora da interface inicial. (Etapa 6 — sem
+      PCA, sem seletor de modo de QF, sem checkboxes de configuração;
+      único controle interativo é o upload + o botão "Executar QC".)
 
 ## 6. Testes
 
-- [ ] Criar testes unitários.
+- [x] Criar testes unitários. (Etapa 6 — `test_qc_reports.py`: colunas
+      originais preservadas intactas e na ordem original; colunas QC
+      presentes e corretas ao final da aba; coloração restrita às colunas
+      QC (nunca nas originais, mesmo com valores coincidentes tipo
+      "OK"/"ALERT"/"CRITICAL" numa coluna original); aba
+      "Flagged_Intervals" com só as linhas `Review="YES"` de todas as
+      abas; `build_summary`/`format_summary_text` com os campos
+      esperados. Suíte completa da V2 com 175 testes, todos passando;
+      validado também de ponta a ponta contra
+      `data/Dados Consolidados-ICCE3.xlsx` (real, 3 energias) e via
+      `streamlit run qc_avaatech.py` (servidor sobe e responde HTTP 200).)
 - [x] Criar teste de regressão para C1. (Etapa 4 —
       `test_qc5_regression_c1_matches_by_spectrum_and_coredepth_not_composite_depth`:
       réplicas com `CompositeDepth (mm)` ausente/NaN em Rep1 ainda casam
