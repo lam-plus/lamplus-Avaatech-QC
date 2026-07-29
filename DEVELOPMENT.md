@@ -106,6 +106,14 @@ Responsabilidades previstas:
 - `qc_avaatech.py`: interface mínima;
 - `tests/`: testes unitários, sintéticos e de integração.
 
+`LEGACY/` não tem um `qc_config.py` separado: todas as constantes
+(`DEPTH_COL`, `ENERGY_PARAMETERS`, pesos do QI, limiares etc.) vivem
+embutidas no topo de `LEGACY/qc_core.py`. O `qc_config.py` da V2 não é,
+portanto, um port direto de um arquivo homônimo em `LEGACY/` — é uma
+extração deliberada dessas constantes para um módulo próprio, consolidando
+numa única fonte de verdade o que antes estava disperso dentro do núcleo de
+cálculo.
+
 Essa estrutura é uma proposta e ainda não representa código implementado. Uma
 mudança nela deve preservar a separação de responsabilidades.
 
