@@ -12,9 +12,14 @@ from functools import lru_cache
 
 import pytest
 
-from conftest import DATA_DIR
+from conftest import DATA_DIR, load_locale_strings
 from qc_config import CORE_DEPTH_COL, DEPTH_COL, REP0_LABEL, REPLICATE_COL
 from qc_io import check_columns, detect_replicates, read_workbook, select_rep0
+
+# check_columns agora recebe o dict `strings` do i18n (ver qc_io.py) -- EN
+# aqui; as asserções checam identificadores (CORE_DEPTH_COL, DEPTH_COL)
+# interpolados na mensagem, não o texto fixo, então o idioma é indiferente.
+STRINGS = load_locale_strings("en")
 
 
 @lru_cache(maxsize=None)
@@ -72,7 +77,7 @@ def test_read_workbook_detects_expected_energies_per_sheet(real_file):
 def test_check_columns_passes_without_errors_for_every_real_sheet(real_file):
     sheets, _ = _read_workbook_cached(str(real_file))
     for sheet in sheets:
-        errors, warnings = check_columns(sheet["df"], sheet["energy"])
+        errors, warnings = check_columns(sheet["df"], sheet["energy"], STRINGS)
         assert errors == [], (
             f"{real_file.name} / aba '{sheet['sheet_name']}' ({sheet['energy']}): "
             f"erros inesperados: {errors}"
@@ -83,7 +88,7 @@ def test_depth_fallback_warning_matches_file_expectations(real_file):
     sheets, _ = _read_workbook_cached(str(real_file))
     expects_fallback = real_file.name not in FILES_WITH_COMPOSITE_DEPTH
     for sheet in sheets:
-        _, warnings = check_columns(sheet["df"], sheet["energy"])
+        _, warnings = check_columns(sheet["df"], sheet["energy"], STRINGS)
         has_fallback_warning = any(CORE_DEPTH_COL in w and DEPTH_COL in w for w in warnings)
         assert has_fallback_warning == expects_fallback, (
             f"{real_file.name} / aba '{sheet['sheet_name']}': "
@@ -112,7 +117,7 @@ def test_multi_energy_file_icce3_has_three_independent_sheets():
     assert [s["energy"] for s in sheets] == ["10kV", "30kV", "50kV"]
 
     kv50 = next(s for s in sheets if s["energy"] == "50kV")
-    errors, warnings = check_columns(kv50["df"], "50kV")
+    errors, warnings = check_columns(kv50["df"], "50kV", STRINGS)
     assert errors == []
     assert "Rh-La Area" not in kv50["df"].columns
     assert "Rh-Ka-Coh Area" not in kv50["df"].columns

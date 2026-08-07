@@ -21,6 +21,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
+from conftest import load_locale_strings
 from qc_config import (
     CORE_DEPTH_COL,
     DEPTH_COL,
@@ -40,6 +41,12 @@ from qc_io import (
 # ============================================================
 # HELPERS
 # ============================================================
+
+# check_columns agora recebe o dict `strings` do i18n (ver qc_io.py) --
+# usamos EN aqui; os testes checam por identificadores (nomes de coluna,
+# "Rep0" etc.) interpolados na mensagem, não pelo texto fixo em si, então
+# o idioma escolhido é indiferente ao que é verificado.
+STRINGS = load_locale_strings("en")
 
 
 def build_sheet_df(
@@ -182,7 +189,7 @@ def test_read_workbook_unexpected_sheet_name_is_skipped_not_fatal(tmp_path):
 def test_check_columns_reports_error_when_rep0_missing():
     df = build_sheet_df("10kV", replicate_labels=("Rep1", "Rep2"))
 
-    errors, warnings = check_columns(df, "10kV")
+    errors, warnings = check_columns(df, "10kV", STRINGS)
 
     assert any("Rep0" in e for e in errors)
 
@@ -209,7 +216,7 @@ def test_select_rep0_raises_when_column_missing():
 def test_check_columns_reports_error_when_critical_column_missing():
     df = build_sheet_df("10kV", drop_columns=("Throughput",))
 
-    errors, warnings = check_columns(df, "10kV")
+    errors, warnings = check_columns(df, "10kV", STRINGS)
 
     assert any("Throughput" in e for e in errors)
 
@@ -217,7 +224,7 @@ def test_check_columns_reports_error_when_critical_column_missing():
 def test_check_columns_ok_for_well_formed_10kv_sheet():
     df = build_sheet_df("10kV", replicate_labels=("Rep0", "Rep1"))
 
-    errors, warnings = check_columns(df, "10kV")
+    errors, warnings = check_columns(df, "10kV", STRINGS)
 
     assert errors == []
 
@@ -232,7 +239,7 @@ def test_check_columns_50kv_does_not_require_coherent_or_incoherent():
     assert "Rh-La Area" not in df.columns
     assert "Rh-Ka-Coh Area" not in df.columns
 
-    errors, warnings = check_columns(df, "50kV")
+    errors, warnings = check_columns(df, "50kV", STRINGS)
 
     assert errors == []
     assert not any("Rh-" in e for e in errors)
@@ -241,7 +248,7 @@ def test_check_columns_50kv_does_not_require_coherent_or_incoherent():
 def test_check_columns_30kv_requires_its_own_coherent_incoherent_columns():
     df = build_sheet_df("30kV", drop_columns=("Rh-Ka-Coh Area",))
 
-    errors, warnings = check_columns(df, "30kV")
+    errors, warnings = check_columns(df, "30kV", STRINGS)
 
     assert any("Rh-Ka-Coh Area" in e for e in errors)
 
@@ -319,7 +326,7 @@ def test_resolve_depth_column_raises_when_neither_column_present():
 def test_check_columns_surfaces_depth_fallback_warning():
     df = build_sheet_df("10kV", include_depth_col=False)
 
-    errors, warnings = check_columns(df, "10kV")
+    errors, warnings = check_columns(df, "10kV", STRINGS)
 
     assert errors == []
     assert any(CORE_DEPTH_COL in w for w in warnings)

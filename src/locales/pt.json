@@ -73,5 +73,9 @@
   "summary_module_line": "{module}: ALERT={alert} CRITICAL={critical}",
   "summary_flagged_header": "Profundidades com Review=YES:",
   "summary_flagged_line": "[{energy}/{sheet}] depth={depth} — causa: {cause}; evidências: {evidence}",
-  "summary_flagged_none": "(nenhuma)"
+  "summary_flagged_none": "(nenhuma)",
+  "validation_missing_columns": "Colunas obrigatórias ausentes para energia {energy}: {columns}. Verifique se o workbook foi exportado corretamente pelo Avaatech e se esta aba corresponde à energia detectada.",
+  "validation_no_depth_column": "Nenhuma coluna de profundidade encontrada ('{depth_col}' ou '{core_depth_col}'). Não é possível ordenar as medições.",
+  "validation_depth_fallback": "Coluna '{depth_col}' não encontrada; usando '{core_depth_col}' como profundidade contínua. Isso só é correto para testemunhos de seção única — em testemunhos multi-seção, CoreDepth reinicia a cada seção e pode distorcer a ordenação por profundidade.",
+  "validation_no_rep0": "Nenhuma medição '{rep0_label}' encontrada na coluna '{replicate_col}'. O QC exige ao menos a primeira passada (Rep0) para calcular as métricas desta aba."
 }

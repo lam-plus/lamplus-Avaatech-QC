@@ -70,10 +70,16 @@ HISTORY_COLUMN_LABEL_KEYS = dict(
 )
 
 
-def _validate_sheets(sheets: list[dict]) -> tuple[list[dict], dict[str, list[str]]]:
+def _validate_sheets(
+    sheets: list[dict], strings: dict[str, str]
+) -> tuple[list[dict], dict[str, list[str]]]:
     """
     Roda check_columns em cada aba lida e exibe erros/avisos antes de
     qualquer processamento.
+
+    `strings` (dict de strings do i18n) é repassado a check_columns para
+    que as mensagens de validação saiam no idioma selecionado na sidebar
+    (ver qc_io.check_columns).
 
     Contrato:
         - Erros bloqueiam a aba (não entra em `valid_sheets`) -- avisos
@@ -91,7 +97,7 @@ def _validate_sheets(sheets: list[dict]) -> tuple[list[dict], dict[str, list[str
     warnings_by_sheet: dict[str, list[str]] = {}
     for sheet in sheets:
         sheet_name, energy, df_raw = sheet["sheet_name"], sheet["energy"], sheet["df"]
-        errors, warnings = check_columns(df_raw, energy)
+        errors, warnings = check_columns(df_raw, energy, strings)
         for error in errors:
             st.error(f"[{sheet_name}] {error}")
         for warning in warnings:
@@ -331,7 +337,7 @@ def _render_processing_tab(
         st.warning(strings["sheets_skipped_warning"].format(sheets=", ".join(skipped)))
 
     st.subheader(strings["validation_header"])
-    valid_sheets, warnings_by_sheet = _validate_sheets(sheets)
+    valid_sheets, warnings_by_sheet = _validate_sheets(sheets, strings)
     if not valid_sheets:
         st.error(strings["no_valid_sheets_error"])
         return
@@ -447,7 +453,7 @@ def main() -> None:
 
     audit_enabled = st.sidebar.checkbox(
         strings["audit_toggle_label"],
-        value=True,
+        value=False,
         help=strings["audit_toggle_help"],
         key="audit_enabled",
     )

@@ -135,7 +135,9 @@ def resolve_depth_column(df: pd.DataFrame) -> tuple[str, list[str]]:
     )
 
 
-def check_columns(df: pd.DataFrame, energy: str) -> tuple[list[str], list[str]]:
+def check_columns(
+    df: pd.DataFrame, energy: str, strings: dict[str, str]
+) -> tuple[list[str], list[str]]:
     """
     Valida a estrutura de uma única aba/energia antes de rodar o pipeline.
 
@@ -143,6 +145,11 @@ def check_columns(df: pd.DataFrame, energy: str) -> tuple[list[str], list[str]]:
         df: DataFrame bruto de uma aba (como retornado por read_workbook).
         energy: uma de SUPPORTED_ENERGIES — determina quais colunas são
             obrigatórias para essa energia (ver qc_config.ENERGY_VARIABLES).
+        strings: dict de strings do i18n (ver i18n.load) -- todas as
+            mensagens de `errors`/`warnings` vêm das chaves "validation_*"
+            deste dict, nunca hardcoded aqui. qc_io.py não importa i18n.py
+            (ver contrato do módulo); quem chama (ex. qc_avaatech.py)
+            resolve o idioma e passa o dict já carregado.
 
     Saída:
         errors: list[str] — problemas que bloqueiam a execução do pipeline
@@ -155,6 +162,7 @@ def check_columns(df: pd.DataFrame, energy: str) -> tuple[list[str], list[str]]:
           que falta e, quando possível, o que fazer).
         - Não lança exceção para dados de entrada inválidos — reporta via
           `errors`; quem chama decide se bloqueia.
+        - O idioma das mensagens é inteiramente determinado por `strings`.
     """
     errors: list[str] = []
     warnings: list[str] = []
@@ -170,32 +178,37 @@ def check_columns(df: pd.DataFrame, energy: str) -> tuple[list[str], list[str]]:
     missing = [c for c in required if c not in df.columns]
     if missing:
         errors.append(
-            f"Colunas obrigatórias ausentes para energia {energy}: "
-            f"{', '.join(missing)}. Verifique se o workbook foi exportado "
-            "corretamente pelo Avaatech e se esta aba corresponde à energia "
-            "detectada."
+            strings["validation_missing_columns"].format(
+                energy=energy, columns=", ".join(missing)
+            )
         )
 
     try:
         _, depth_warnings = resolve_depth_column(df)
-        warnings.extend(depth_warnings)
+        if depth_warnings:
+            warnings.append(
+                strings["validation_depth_fallback"].format(
+                    depth_col=DEPTH_COL, core_depth_col=CORE_DEPTH_COL
+                )
+            )
     except ValueError:
         # Já reportado como erro acima quando CORE_DEPTH_COL faz parte de
         # REPLICATE_KEY_COLS (sempre obrigatório); mensagem própria caso
         # falte só a profundidade (ex. checagem chamada fora de ordem).
         if CORE_DEPTH_COL not in missing:
             errors.append(
-                f"Nenhuma coluna de profundidade encontrada ('{DEPTH_COL}' ou "
-                f"'{CORE_DEPTH_COL}'). Não é possível ordenar as medições."
+                strings["validation_no_depth_column"].format(
+                    depth_col=DEPTH_COL, core_depth_col=CORE_DEPTH_COL
+                )
             )
 
     if REPLICATE_COL in df.columns:
         rep_values = df[REPLICATE_COL].dropna()
         if REP0_LABEL not in rep_values.values:
             errors.append(
-                f"Nenhuma medição '{REP0_LABEL}' encontrada na coluna "
-                f"'{REPLICATE_COL}'. O QC exige ao menos a primeira passada "
-                "(Rep0) para calcular as métricas desta aba."
+                strings["validation_no_rep0"].format(
+                    rep0_label=REP0_LABEL, replicate_col=REPLICATE_COL
+                )
             )
 
     return errors, warnings

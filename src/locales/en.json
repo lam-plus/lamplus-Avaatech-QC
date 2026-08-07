@@ -73,5 +73,9 @@
   "summary_module_line": "{module}: ALERT={alert} CRITICAL={critical}",
   "summary_flagged_header": "Depths with Review=YES:",
   "summary_flagged_line": "[{energy}/{sheet}] depth={depth} — cause: {cause}; evidence: {evidence}",
-  "summary_flagged_none": "(none)"
+  "summary_flagged_none": "(none)",
+  "validation_missing_columns": "Required columns missing for energy {energy}: {columns}. Check that the workbook was exported correctly by Avaatech and that this sheet matches the detected energy.",
+  "validation_no_depth_column": "No depth column found ('{depth_col}' or '{core_depth_col}'). Measurements cannot be ordered.",
+  "validation_depth_fallback": "Column '{depth_col}' not found; using '{core_depth_col}' as the continuous depth. This is only correct for single-section cores — in multi-section cores, CoreDepth resets at each section and can distort depth ordering.",
+  "validation_no_rep0": "No '{rep0_label}' measurement found in column '{replicate_col}'. QC requires at least the first pass (Rep0) to calculate metrics for this sheet."
 }
