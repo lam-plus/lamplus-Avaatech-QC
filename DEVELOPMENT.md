@@ -18,6 +18,49 @@ A V2 começa com um núcleo pequeno e bem definido. Funcionalidades adicionais
 só deverão ser consideradas depois que esse núcleo estiver estabilizado,
 testado com dados reais e documentado.
 
+## 1.1 O que este app faz (estado atual)
+
+Além do núcleo QC1–QC5 descrito na seção 3, a interface (`qc_avaatech.py`) e
+os módulos de apoio (`i18n.py`, `qc_audit.py`, `qc_reports.py`) já
+implementam:
+
+- **Interface bilíngue EN/PT.** Seletor de idioma na sidebar
+  (`i18n.SUPPORTED_LANGS`); todas as strings da interface, mensagens de
+  validação e resumo (`summary.txt`) vêm de `src/locales/en.json` /
+  `src/locales/pt.json` via `i18n.load`. Chave ausente na tradução nunca
+  quebra a interface — cai para o valor em EN.
+- **Mensagens de validação traduzidas.** `qc_io.check_columns` recebe o
+  dict de strings já carregado (não importa `i18n.py` diretamente — ver
+  decisão em 4.4) e usa exclusivamente as chaves `validation_*` para
+  erros/avisos de colunas obrigatórias, ausência de `Rep0` e fallback de
+  coluna de profundidade.
+- **Auditoria em SQLite com toggle na sidebar.** `qc_audit.py` registra
+  uma linha por aba/energia processada com sucesso em `data/audit.db`
+  (operador, arquivo + MD5, commit git, versão do pipeline, distribuição
+  de QF, avisos, tempo de execução). O registro só acontece quando o
+  toggle "Enable audit log" está ativo — **desligado por padrão** (ver
+  decisão em 4.4). Com o toggle ligado, uma aba "Histórico" aparece,
+  consultando `qc_audit.query_runs` com filtro por arquivo/operador.
+- **Degradação graciosa em ambiente web/hospedado.** Falhas ao
+  registrar (`register_run`) ou consultar (`query_runs`) a auditoria —
+  ex. `data/` somente leitura ou efêmero em Streamlit Community Cloud —
+  são capturadas e nunca aparecem como erro/traceback ao usuário; caem no
+  mesmo aviso amigável exibido quando simplesmente não há execuções
+  registradas ainda.
+- **Sumário visual por energia.** Cards de métricas (`n(Rep0)`,
+  QF0–QF3, INDETERMINATE), barra de distribuição de QF colorida (HTML via
+  `st.html`, já que `st.progress` não suporta cor por segmento), tabela de
+  contagem ALERT/CRITICAL por módulo (QC1–QC5) e lista de profundidades
+  com `Review = YES` (causa principal + evidências). Usa `st.tabs` por
+  energia quando o arquivo tem múltiplas abas.
+- **`summary.txt` bilíngue.** `qc_reports.format_summary_text` monta o
+  resumo para download inteiramente a partir de `strings["summary_*"]`
+  (i18n) — baixar com EN selecionado produz texto em inglês; com PT,
+  inteiramente em português, incluindo o sufixo do nome do arquivo
+  (`_summary`/`_resumo`).
+- **Campo "Operador" opcional na sidebar**, texto livre, registrado em
+  cada execução de auditoria.
+
 ## 2. Relação com `LEGACY/`
 
 `LEGACY/` preserva a implementação estável anterior, sua documentação técnica,
@@ -83,6 +126,27 @@ interface.
 - Registrar a causa principal e as evidências que sustentam cada flag.
 - Documentar decisões metodológicas e mudanças de comportamento.
 - Manter resultados reproduzíveis para uma mesma entrada e configuração.
+
+### 4.4 Decisões registradas (i18n e auditoria)
+
+- **Auditoria desligada por padrão** (`audit_enabled = False` em
+  `qc_avaatech.main`). Motivo: em ambientes hospedados/efêmeros (ex.
+  Streamlit Community Cloud), `data/` pode ser somente leitura ou não
+  persistir entre sessões, além de não fazer sentido gravar
+  automaticamente sem consentimento explícito do operador. Quem quiser
+  rastreabilidade local liga o toggle na sidebar; com o toggle desligado,
+  a aba "Histórico" nem é criada.
+- **EN como idioma padrão** (`i18n.DEFAULT_LANG = "en"`, primeiro em
+  `i18n.SUPPORTED_LANGS`). Motivo: consistência com a literatura e o
+  protocolo QC internacionais e com colaborações fora do Brasil; PT
+  continua disponível como alternativa completa (toda chave existe nos
+  dois locales, com fallback para EN se faltar).
+- **`qc_io.check_columns` recebe o dict de strings do i18n já resolvido
+  pelo chamador**, em vez de importar `i18n.py` diretamente. Motivo:
+  mantém `qc_io.py` livre de dependência de interface/idioma — quem
+  decide o idioma é a camada de UI (`qc_avaatech.py`), preservando o
+  contrato do módulo (ver cabeçalho de `qc_io.py`: "não contém lógica de
+  interface").
 
 ## 5. Estrutura proposta
 

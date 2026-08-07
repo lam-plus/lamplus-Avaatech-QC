@@ -189,7 +189,75 @@ pendências da versão anterior estão em `LEGACY/TODO.md`.
       via modo combinado — simplificação deliberada, não bug).)
 - [ ] Executar um benchmark básico.
 
-## 7. Critérios de conclusão da V2 inicial
+## 7. Auditoria, i18n e sumário visual
+
+- [x] Implementar suporte bilíngue EN/PT na interface. (`i18n.py`:
+      `i18n.load` carrega `src/locales/en.json`/`pt.json`; EN é o padrão
+      (`DEFAULT_LANG`) e primeiro em `SUPPORTED_LANGS`; chave ausente na
+      tradução cai para EN, nunca `KeyError`. Seletor de idioma na
+      sidebar via `qc_avaatech._select_language`, ver DEVELOPMENT.md 1.1
+      e 4.4.)
+- [x] Traduzir as mensagens de validação. (`qc_io.check_columns` passou a
+      receber o dict de strings do i18n já carregado pelo chamador —
+      chaves `validation_missing_columns`, `validation_no_depth_column`,
+      `validation_depth_fallback`, `validation_no_rep0` — em vez de texto
+      hardcoded; decisão de não importar `i18n.py` em `qc_io.py`
+      registrada em DEVELOPMENT.md 4.4.)
+- [x] Implementar trilha de auditoria em SQLite. (`qc_audit.py`:
+      `init_db`, `register_run` e `query_runs` sobre `data/audit.db`
+      (tabela `runs`) — uma linha por aba/energia processada com sucesso,
+      com operador, arquivo + MD5, commit git, versão do pipeline
+      (`PIPELINE_VERSION`), distribuição de QF, avisos e tempo de
+      execução.)
+- [x] Adicionar toggle de auditoria na sidebar, desligado por padrão.
+      (`qc_avaatech.main`: checkbox "Enable audit log" com
+      `value=False`; decisão e motivo registrados em DEVELOPMENT.md 4.4.)
+- [x] Adicionar aba "Histórico" com filtro por arquivo/operador.
+      (`qc_avaatech._render_history_tab`: consulta `qc_audit.query_runs`
+      com filtros de texto por arquivo/operador e limite configurável;
+      aba só existe quando o toggle de auditoria está ligado.)
+- [x] Implementar degradação graciosa da auditoria em ambientes
+      hospedados. (`_render_history_tab`/`_render_processing_tab`:
+      exceções de `register_run`/`query_runs` — ex. `data/` somente
+      leitura ou efêmero — são capturadas e nunca chegam ao usuário como
+      erro/traceback; caem no mesmo aviso amigável de "nenhuma execução
+      registrada ainda".)
+- [x] Adicionar sumário visual por energia. (`qc_avaatech._render_visual_summary`
+      /`_render_energy_visual_summary`: cards de métricas, barra de
+      distribuição de QF em HTML (`_qf_distribution_bar_html`, colorida
+      por QF0–QF3/INDETERMINATE), tabela de ALERT/CRITICAL por módulo
+      QC1–QC5 e lista de profundidades com `Review=YES`; usa `st.tabs`
+      por energia quando o arquivo tem múltiplas abas.)
+- [x] Gerar `summary.txt` bilíngue. (`qc_reports.format_summary_text`
+      passou a receber o dict de strings do i18n e monta todo o texto a
+      partir das chaves `summary_*` — nenhum texto hardcoded; nome do
+      arquivo baixado usa o sufixo traduzido
+      `download_summary_file_suffix` (`_summary`/`_resumo`).)
+- [x] Adicionar campo "Operador" opcional na sidebar, registrado em cada
+      execução de auditoria. (`qc_avaatech.main`: `st.sidebar.text_input`
+      repassado a `register_run` como `operador`.)
+- [x] Corrigir uso de `use_container_width` para `width="stretch"`.
+      (Verificado em 2026-08-07: nenhuma ocorrência de
+      `use_container_width` em `src/`; todos os `st.dataframe` já usam
+      `width="stretch"`. Item já resolvido no código atual — mantido
+      aqui como registro, não como pendência.)
+
+## 8. Próximos itens planejados
+
+- [ ] Documentar os 5 módulos QC (QC1–QC5) como referência consultável na
+      sidebar: criar `src/docs/` com o conteúdo (um arquivo por módulo ou
+      um único texto estruturado) e um `st.expander`/seção na sidebar de
+      `qc_avaatech.py` que exiba essa documentação sem sair da interface.
+- [ ] Adicionar botão de feedback por email na sidebar (ex. `mailto:`
+      com link/botão, ou pequeno formulário) para o operador reportar
+      problemas ou sugestões diretamente da interface.
+- [ ] Criar atalho de desktop para Windows e Ubuntu equivalente ao
+      `LEGACY/setup_shortcut.py` (detecção automática do SO, ícone
+      convertido de `assets/lamplus_logo.png`, atalho apontando para o
+      Python do `.venv` quando existir), adaptado para o ponto de entrada
+      da V2 (`streamlit run src/qc_avaatech.py`).
+
+## 9. Critérios de conclusão da V2 inicial
 
 - [ ] Todos os testes passam.
 - [ ] Os resultados são reproduzíveis.
