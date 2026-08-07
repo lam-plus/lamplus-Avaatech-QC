@@ -17,6 +17,9 @@ __pycache__/
 # Streamlit
 .streamlit/
 
+# Banco de auditoria (dados locais, não versionados)
+data/audit.db
+
 # PyInstaller build artifacts
 installer/dist/
 installer/build/

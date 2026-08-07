@@ -20,7 +20,7 @@ SRC_DIR = Path(__file__).resolve().parents[1]
 if str(SRC_DIR) not in sys.path:
     sys.path.insert(0, str(SRC_DIR))
 
-MODULES = ["qc_config", "qc_io", "qc_core", "qc_reports", "qc_avaatech"]
+MODULES = ["qc_config", "qc_io", "qc_core", "qc_reports", "qc_audit", "qc_avaatech"]
 
 
 def test_modules_import_without_error():

@@ -179,3 +179,12 @@ CAUSE_INCOHERENT = "incoherent"
 CAUSE_ROLLING = "rolling"
 CAUSE_REPLICA = "replica"
 CAUSE_MISSING_DATA = "missing_data"
+
+# ============================================================
+# VERSÃO DO PIPELINE
+# ============================================================
+
+# Identificador da versão do pipeline de QC da V2, registrado em cada linha
+# de auditoria (ver qc_audit.py). Não influencia nenhum cálculo científico
+# -- é só rastreabilidade (qual versão do código gerou este resultado).
+PIPELINE_VERSION = "2.0.0"
