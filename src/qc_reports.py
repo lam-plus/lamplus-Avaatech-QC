@@ -272,38 +272,57 @@ def build_summary(sheet_results: list[dict], file_name: str = "") -> dict[str, A
     return {"file_name": file_name, "energies": energies, "flagged": flagged}
 
 
-def format_summary_text(summary: dict[str, Any]) -> str:
+def format_summary_text(summary: dict[str, Any], strings: dict[str, str]) -> str:
     """
     Renderiza o dict de build_summary como texto simples, pronto para
     exibição ou download (.txt).
+
+    Entrada:
+        summary: saída de build_summary.
+        strings: dict de strings do i18n (ver i18n.load) -- todos os
+            rótulos e mensagens do texto gerado vêm das chaves
+            "summary_*" deste dict, nunca hardcoded aqui.
+
+    Contrato:
+        - O idioma do texto gerado é inteiramente determinado por
+          `strings`: passar i18n.load("en") produz um resumo inteiramente
+          em inglês; i18n.load("pt"), inteiramente em português.
     """
-    file_label = summary.get("file_name") or "(sem nome)"
-    lines = [f"Arquivo: {file_label}", ""]
+    file_label = summary.get("file_name") or strings["summary_no_file_name"]
+    lines = [strings["summary_file_label"].format(file=file_label), ""]
 
     for energy, stats in summary["energies"].items():
         qf = stats["qf_distribution"]
-        lines.append(f"Energia {energy}:")
-        lines.append(f"  n(Rep0) = {stats['n_measurements']}")
-        lines.append(
-            "  QF0: {QF0} | QF1: {QF1} | QF2: {QF2} | QF3: {QF3} | "
-            "INDETERMINATE: {INDETERMINATE}".format(**qf)
-        )
-        lines.append("  ALERT/CRITICAL por módulo:")
+        lines.append(strings["summary_energy_label"].format(energy=energy))
+        lines.append("  " + strings["summary_n_measurements"].format(n=stats["n_measurements"]))
+        lines.append("  " + strings["summary_qf_distribution"].format(**qf))
+        lines.append("  " + strings["summary_module_header"])
         for module, counts in stats["module_counts"].items():
-            lines.append(f"    {module}: ALERT={counts['ALERT']} CRITICAL={counts['CRITICAL']}")
+            lines.append(
+                "    "
+                + strings["summary_module_line"].format(
+                    module=module, alert=counts["ALERT"], critical=counts["CRITICAL"]
+                )
+            )
         lines.append("")
 
-    lines.append("Profundidades com Review=YES:")
+    lines.append(strings["summary_flagged_header"])
     if summary["flagged"]:
         for item in summary["flagged"]:
             depth = item["depth"]
             depth_str = f"{depth:.1f}" if isinstance(depth, (int, float)) else str(depth)
             evidence = item["evidence"] or "-"
             lines.append(
-                f"  [{item['energy']}/{item['sheet_name']}] depth={depth_str} "
-                f"— causa: {item['cause']}; evidências: {evidence}"
+                "  "
+                + strings["summary_flagged_line"].format(
+                    energy=item["energy"],
+                    sheet=item["sheet_name"],
+                    depth=depth_str,
+                    cause=item["cause"],
+                    evidence=evidence,
+                )
             )
     else:
-        lines.append("  (nenhuma)")
+        lines.append("  " + strings["summary_flagged_none"])
 
     return "\n".join(lines)

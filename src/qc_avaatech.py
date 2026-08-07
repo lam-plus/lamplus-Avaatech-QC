@@ -20,7 +20,7 @@ from pathlib import Path
 import pandas as pd
 import streamlit as st
 
-from qc_audit import query_runs, register_run
+from qc_audit import RUNS_COLUMNS, query_runs, register_run
 from qc_core import run_qc
 from qc_io import check_columns, read_workbook
 from qc_reports import build_excel_report, build_summary, format_summary_text
@@ -40,6 +40,34 @@ QF_BAR_COLORS = {
 # Caminho absoluto (independente do cwd de onde `streamlit run` foi
 # chamado) para o logo exibido no cabeçalho da interface.
 LOGO_PATH = Path(__file__).resolve().parent.parent / "assets" / "lamplus_logo.png"
+
+# Chave i18n de cada coluna de RUNS_COLUMNS (qc_audit.py), na mesma ordem --
+# usada só para traduzir os cabeçalhos da tabela exibida na aba "Histórico".
+# O schema do banco (nomes de coluna reais em RUNS_COLUMNS) não é afetado.
+HISTORY_COLUMN_LABEL_KEYS = dict(
+    zip(
+        RUNS_COLUMNS,
+        (
+            "history_col_id",
+            "history_col_timestamp",
+            "history_col_operator",
+            "history_col_file_name",
+            "history_col_file_md5",
+            "history_col_git_commit",
+            "history_col_pipeline_version",
+            "history_col_sheet",
+            "history_col_n_rep0",
+            "history_col_qf0",
+            "history_col_qf1",
+            "history_col_qf2",
+            "history_col_qf3",
+            "history_col_qf_indeterminate",
+            "history_col_warnings",
+            "history_col_execution_time_s",
+        ),
+        strict=True,
+    )
+)
 
 
 def _validate_sheets(sheets: list[dict]) -> tuple[list[dict], dict[str, list[str]]]:
@@ -222,6 +250,13 @@ def _render_history_tab(strings: dict[str, str]) -> None:
     """
     Aba "Histórico": consulta qc_audit.query_runs e exibe as execuções já
     registradas, com filtros opcionais por arquivo e por operador.
+
+    Degradação graciosa: em ambientes hospedados/sem instalação local (ex.
+    Streamlit Community Cloud), `data/` pode ser somente leitura ou efêmero
+    -- init_db()/query_runs() podem levantar exceção (permissão, disco
+    somente leitura, etc.). Essa exceção é capturada aqui e nunca chega ao
+    usuário como erro/traceback: cai no mesmo aviso amigável exibido quando
+    simplesmente não há execuções registradas ainda.
     """
     st.subheader(strings["history_header"])
 
@@ -237,19 +272,30 @@ def _render_history_tab(strings: dict[str, str]) -> None:
         key="hist_limite",
     )
 
-    history_df = query_runs(
-        arquivo_nome=arquivo_filter or None,
-        operador=operador_filter or None,
-        limite=int(limite),
-    )
+    try:
+        history_df = query_runs(
+            arquivo_nome=arquivo_filter or None,
+            operador=operador_filter or None,
+            limite=int(limite),
+        )
+    except Exception:
+        history_df = None
 
-    if history_df.empty:
-        st.caption(strings["history_empty_caption"])
+    if history_df is None or history_df.empty:
+        st.caption(strings["audit_no_data"])
+        st.caption(strings["audit_local_only"])
     else:
-        st.dataframe(history_df, width="stretch", hide_index=True)
+        display_df = history_df.rename(
+            columns={
+                column: strings[key] for column, key in HISTORY_COLUMN_LABEL_KEYS.items()
+            }
+        )
+        st.dataframe(display_df, width="stretch", hide_index=True)
 
 
-def _render_processing_tab(operador: str | None, strings: dict[str, str]) -> None:
+def _render_processing_tab(
+    operador: str | None, strings: dict[str, str], audit_enabled: bool
+) -> None:
     """
     Aba "Processamento": fluxo completo de upload, validação, execução do
     QC, resumo/sumário visual, resultados e download -- igual ao fluxo
@@ -257,8 +303,9 @@ def _render_processing_tab(operador: str | None, strings: dict[str, str]) -> Non
     "Histórico" em main().
 
     Registra a execução em auditoria (qc_audit.register_run) logo após um
-    processamento bem-sucedido; falha ao registrar não impede o restante do
-    fluxo (resumo/download continuam funcionando normalmente).
+    processamento bem-sucedido, só quando `audit_enabled` (toggle da
+    sidebar); falha ao registrar não impede o restante do fluxo
+    (resumo/download continuam funcionando normalmente).
     """
     uploaded = st.file_uploader(strings["upload_label"], type=["xlsx"])
     if uploaded is None:
@@ -294,16 +341,17 @@ def _render_processing_tab(operador: str | None, strings: dict[str, str]) -> Non
         sheet_results = _run_pipeline(valid_sheets, warnings_by_sheet)
         elapsed = time.perf_counter() - start
 
-        try:
-            register_run(
-                sheet_results,
-                arquivo_nome=uploaded.name,
-                arquivo_bytes=uploaded.getvalue(),
-                operador=operador,
-                tempo_execucao_s=elapsed,
-            )
-        except Exception as exc:
-            st.warning(strings["audit_register_warning"].format(error=exc))
+        if audit_enabled:
+            try:
+                register_run(
+                    sheet_results,
+                    arquivo_nome=uploaded.name,
+                    arquivo_bytes=uploaded.getvalue(),
+                    operador=operador,
+                    tempo_execucao_s=elapsed,
+                )
+            except Exception as exc:
+                st.warning(strings["audit_register_warning"].format(error=exc))
 
         st.session_state["sheet_results"] = sheet_results
         st.session_state["file_name"] = uploaded.name
@@ -344,8 +392,8 @@ def _render_processing_tab(operador: str | None, strings: dict[str, str]) -> Non
     )
     st.download_button(
         strings["download_summary_label"],
-        data=format_summary_text(summary),
-        file_name=f"{stem}_resumo.txt",
+        data=format_summary_text(summary, strings),
+        file_name=f"{stem}{strings['download_summary_file_suffix']}.txt",
         mime="text/plain",
     )
 
@@ -397,11 +445,29 @@ def main() -> None:
         or None
     )
 
-    tab_processing, tab_history = st.tabs([strings["tab_processing"], strings["tab_history"]])
-    with tab_processing:
-        _render_processing_tab(operador, strings)
-    with tab_history:
-        _render_history_tab(strings)
+    audit_enabled = st.sidebar.checkbox(
+        strings["audit_toggle_label"],
+        value=True,
+        help=strings["audit_toggle_help"],
+        key="audit_enabled",
+    )
+
+    if audit_enabled:
+        tab_processing, tab_history = st.tabs(
+            [strings["tab_processing"], strings["tab_history"]]
+        )
+        with tab_processing:
+            _render_processing_tab(operador, strings, audit_enabled)
+        with tab_history:
+            _render_history_tab(strings)
+    else:
+        # Toggle desligado: nenhuma execução é registrada (ver
+        # _render_processing_tab) e a aba "Histórico" nem é criada -- não
+        # faria sentido mostrar um histórico que não está mais sendo
+        # alimentado nesta sessão.
+        (tab_processing,) = st.tabs([strings["tab_processing"]])
+        with tab_processing:
+            _render_processing_tab(operador, strings, audit_enabled)
 
 
 if __name__ == "__main__":

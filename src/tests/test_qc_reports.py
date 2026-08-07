@@ -24,6 +24,8 @@ Não depende de LEGACY/ (ver conftest.py).
 from __future__ import annotations
 
 import io
+import json
+from pathlib import Path
 
 import openpyxl
 import pandas as pd
@@ -37,6 +39,21 @@ from qc_reports import (
     build_summary,
     format_summary_text,
 )
+
+# Lê os locales diretamente do JSON em vez de `import i18n`: este módulo
+# roda no mesmo processo que test_qc_core_vs_legacy.py, que carrega
+# LEGACY/qc_core.py (e o `i18n.py` dele) via manipulação de sys.path/
+# sys.modules sob o mesmo nome "i18n". Um `import i18n` aqui deixaria a V2
+# ou a LEGACY em sys.modules["i18n"] dependendo da ordem de execução dos
+# testes, quebrando um dos dois lados (ver comentário em
+# qc_avaatech._select_language). Ler o JSON direto evita a colisão.
+_LOCALES_DIR = Path(__file__).resolve().parents[1] / "locales"
+
+
+def _load_strings(lang: str) -> dict[str, str]:
+    with (_LOCALES_DIR / f"{lang}.json").open(encoding="utf-8") as fh:
+        return json.load(fh)
+
 
 OK = QCState.OK
 ALERT = QCState.ALERT
@@ -272,10 +289,10 @@ def test_build_summary_does_not_mutate_input():
     assert list(sheet_result["rep0"].columns) == original_columns
 
 
-def test_format_summary_text_contains_expected_fields():
+def test_format_summary_text_contains_expected_fields_pt():
     sheet_result = make_sheet_result(sheet_name="10kV", energy="10kV")
     summary = build_summary([sheet_result], file_name="meu_arquivo.xlsx")
-    text = format_summary_text(summary)
+    text = format_summary_text(summary, _load_strings("pt"))
 
     assert "Arquivo: meu_arquivo.xlsx" in text
     assert "Energia 10kV:" in text
@@ -288,11 +305,52 @@ def test_format_summary_text_contains_expected_fields():
     assert "causa: throughput" in text
 
 
-def test_format_summary_text_reports_no_flagged_rows():
+def test_format_summary_text_reports_no_flagged_rows_pt():
     sheet_result = make_sheet_result()
     sheet_result["rep0"]["Review"] = ["NO", "NO", "NO"]
     summary = build_summary([sheet_result], file_name="arquivo.xlsx")
-    text = format_summary_text(summary)
+    text = format_summary_text(summary, _load_strings("pt"))
 
     assert "Profundidades com Review=YES:" in text
     assert "(nenhuma)" in text
+
+
+def test_format_summary_text_contains_expected_fields_en():
+    sheet_result = make_sheet_result(sheet_name="10kV", energy="10kV")
+    summary = build_summary([sheet_result], file_name="my_file.xlsx")
+    text = format_summary_text(summary, _load_strings("en"))
+
+    assert "File: my_file.xlsx" in text
+    assert "Energy 10kV:" in text
+    assert "n(Rep0) = 3" in text
+    assert "QF0: 1 | QF1: 1 | QF2: 1 | QF3: 0 | INDETERMINATE: 0" in text
+    assert "ALERT/CRITICAL by module:" in text
+    assert "QC1_State: ALERT=1 CRITICAL=1" in text
+    assert "Depths with Review=YES:" in text
+    assert "depth=30.0" in text
+    assert "cause: throughput" in text
+
+    # nenhum texto em português deve vazar para o resumo em inglês.
+    assert "Arquivo" not in text
+    assert "Energia" not in text
+    assert "módulo" not in text
+    assert "Profundidades" not in text
+    assert "causa" not in text
+
+
+def test_format_summary_text_reports_no_flagged_rows_en():
+    sheet_result = make_sheet_result()
+    sheet_result["rep0"]["Review"] = ["NO", "NO", "NO"]
+    summary = build_summary([sheet_result], file_name="file.xlsx")
+    text = format_summary_text(summary, _load_strings("en"))
+
+    assert "Depths with Review=YES:" in text
+    assert "(none)" in text
+
+
+def test_format_summary_text_no_file_name_uses_translated_placeholder():
+    sheet_result = make_sheet_result()
+    summary = build_summary([sheet_result])
+
+    assert "File: (no name)" in format_summary_text(summary, _load_strings("en"))
+    assert "Arquivo: (sem nome)" in format_summary_text(summary, _load_strings("pt"))
