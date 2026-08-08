@@ -1,5 +1,8 @@
 # TODO — LAM+ Core QC V2
 
+**Laboratory for Multispectral Analysis and Artificial Intelligence in
+Sedimentary Research (LAM+)**
+
 Este arquivo contém somente o trabalho da V2 simplificada. O histórico e as
 pendências da versão anterior estão em `LEGACY/TODO.md`.
 

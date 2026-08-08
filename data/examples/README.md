@@ -2,9 +2,11 @@
 
 These three `.xlsx` files are **real Avaatech XRF Core Scanner exports,
 anonymized**, kept in the repository so anyone can try the QC pipeline or
-run the test suite without needing access to the LAM+ Laboratory's raw
-data. Anonymization removed core/site identifiers from file names and
-sheet metadata; the measurement columns and values are untouched.
+run the test suite without needing access to raw data from the Laboratory
+for Multispectral Analysis and Artificial Intelligence in Sedimentary
+Research (LAM+). Anonymization removed core/site identifiers from file
+names and sheet metadata; the measurement columns and values are
+untouched.
 
 They were chosen to cover the three workbook shapes the pipeline has to
 handle, one energy tab at a time up to three:

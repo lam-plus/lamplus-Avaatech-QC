@@ -7,7 +7,8 @@ checks against the raw measurements, assigns a single per-row **Quality
 Flag (QF)**, and produces a colored Excel report plus a text summary you
 can act on without inspecting every row by hand.
 
-It is built and maintained by the **LAM+ Laboratory** (Universidade
+It is built and maintained by the **Laboratory for Multispectral Analysis
+and Artificial Intelligence in Sedimentary Research (LAM+)** (Universidade
 Federal Fluminense, UFF) for its own core-scanning workflow, and shared
 here for anyone running the same instrument who wants a fast, repeatable
 QC pass over their raw exports.
@@ -42,7 +43,7 @@ QC pass over their raw exports.
 ## Installation
 
 ```bash
-git clone https://github.com/<your-org>/lamplus-Avaatech-QC.git
+git clone https://github.com/lam-plus/lamplus-Avaatech-QC.git
 cd lamplus-Avaatech-QC
 
 python -m venv .venv

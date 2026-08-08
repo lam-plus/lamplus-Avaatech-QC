@@ -1,7 +1,9 @@
 # src/ — Developer Guide
 
-This is the implementation of LAM+ Core QC: a small set of single-purpose
-modules, a Streamlit UI on top, and a test suite. See the root
+This is the implementation of LAM+ Core QC — built by the Laboratory for
+Multispectral Analysis and Artificial Intelligence in Sedimentary Research
+(LAM+): a small set of single-purpose modules, a Streamlit UI on top, and
+a test suite. See the root
 [README.md](../README.md) for what the app does from a user's point of
 view, and [../DEVELOPMENT.md](../DEVELOPMENT.md) for the full design
 rationale and validation history.

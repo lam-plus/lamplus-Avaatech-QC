@@ -43,3 +43,6 @@ Thumbs.db
 *.tmp
 *.swp
 *~
+
+# Configurações locais do editor (VS Code)
+.vscode/

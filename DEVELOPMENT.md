@@ -1,5 +1,8 @@
 # Desenvolvimento — LAM+ Core QC V2
 
+**Laboratory for Multispectral Analysis and Artificial Intelligence in
+Sedimentary Research (LAM+)**, Universidade Federal Fluminense (UFF)
+
 ## 1. Objetivo da V2
 
 A V2 será uma implementação mais simples, modular e auditável do controle de
