@@ -3,11 +3,11 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/lam-plus/lamplus-Avaatech-QC/actions/workflows/tests.yml"><img src="https://github.com/lam-plus/lamplus-Avaatech-QC/actions/workflows/tests.yml/badge.svg" alt="Tests"></a>
   <a href="https://doi.org/10.5281/zenodo.21855319"><img src="https://zenodo.org/badge/DOI/10.5281/zenodo.21855319.svg" alt="DOI"></a>
   <a href="https://www.python.org"><img src="https://img.shields.io/badge/python-3.10+-blue.svg" alt="Python"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-yellow.svg" alt="License: MIT"></a>
   <a href="https://streamlit.io"><img src="https://img.shields.io/badge/built%20with-Streamlit-ff4b4b.svg" alt="Streamlit"></a>
+  <a href="https://github.com/lam-plus/lamplus-Avaatech-QC/actions/workflows/tests.yml"><img src="https://github.com/lam-plus/lamplus-Avaatech-QC/actions/workflows/tests.yml/badge.svg" alt="Tests"></a>
   <a href="https://github.com/lam-plus/lamplus-Avaatech-QC/security/dependabot"><img src="https://img.shields.io/badge/dependabot-enabled-025E8C?logo=dependabot" alt="Dependabot"></a>
 </p>
 
