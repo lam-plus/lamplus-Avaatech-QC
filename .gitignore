@@ -26,13 +26,13 @@ data/audit.db
 data/*.xlsx
 !data/examples/
 
+# Implementação legada (arquivo histórico, não versionado — ver DEVELOPMENT.md)
+LEGACY/
+
 # PyInstaller build artifacts
 installer/dist/
 installer/build/
 installer/__pycache__/
-LEGACY/installer/dist/
-LEGACY/installer/build/
-LEGACY/installer/__pycache__/
 *.exe
 *.spec.bak
 
