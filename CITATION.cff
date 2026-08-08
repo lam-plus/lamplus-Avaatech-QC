@@ -17,10 +17,13 @@ authors:
     given-names: Igor
     email: ivenancio@id.uff.br
     affiliation: "Universidade Federal Fluminense (UFF)"
+  - family-names: Albuquerque
+    given-names: Ana Luiza S.
+    affiliation: "Universidade Federal Fluminense (UFF)"
 abstract: >
-  Quality control tool for Avaatech XRF Core Scanner data. 
-  Implements five automated QC modules (QC1-QC5) with multi-energy 
-  support (10/30/50 kV), bilingual interface (EN/PT), and automated 
+  Quality control tool for Avaatech XRF Core Scanner data.
+  Implements five automated QC modules (QC1-QC5) with multi-energy
+  support (10/30/50 kV), bilingual interface (EN/PT), and automated
   Quality Flag assignment by module-count.
 keywords:
   - XRF
