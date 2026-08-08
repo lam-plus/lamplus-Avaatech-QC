@@ -2,6 +2,8 @@
   <img src="assets/lamplus_logo.png" width="180" alt="LAM+ logo">
 </p>
 
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.21855319.svg)](https://doi.org/10.5281/zenodo.21855319)
+
 # LAM+ Core Quality Check (QC) tool
 
 **LAM+ Core QC** is a quality-control tool for X-ray fluorescence (XRF)
