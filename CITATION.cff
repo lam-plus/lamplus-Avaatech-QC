@@ -1,0 +1,31 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite it as below."
+type: software
+title: "LAM+ Core QC"
+version: v2.0.0
+doi: 10.5281/zenodo.21855319
+date-released: 2026-08-08
+url: "https://github.com/lam-plus/lamplus-Avaatech-QC"
+repository-code: "https://github.com/lam-plus/lamplus-Avaatech-QC"
+license: MIT
+authors:
+  - family-names: Belem
+    given-names: Andre L.
+    email: andrebelem@id.uff.br
+    affiliation: "Universidade Federal Fluminense (UFF)"
+  - family-names: Venancio
+    given-names: Igor
+    email: ivenancio@id.uff.br
+    affiliation: "Universidade Federal Fluminense (UFF)"
+abstract: >
+  Quality control tool for Avaatech XRF Core Scanner data. 
+  Implements five automated QC modules (QC1-QC5) with multi-energy 
+  support (10/30/50 kV), bilingual interface (EN/PT), and automated 
+  Quality Flag assignment by module-count.
+keywords:
+  - XRF
+  - core scanner
+  - quality control
+  - paleoceanography
+  - sediment cores
+  - Avaatech
