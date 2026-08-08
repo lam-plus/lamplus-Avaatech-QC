@@ -1,6 +1,6 @@
 """
 Testes de integração da Etapa 2 (plano-de-acao.md) contra os workbooks
-Avaatech reais em `data/`.
+Avaatech reais (anonimizados) em `data/examples/`.
 
 Confirma que qc_io.py lê e valida os arquivos que já foram usados para
 validar a LEGACY, sem depender dela em runtime (ver conftest.py).
@@ -25,9 +25,10 @@ STRINGS = load_locale_strings("en")
 @lru_cache(maxsize=None)
 def _read_workbook_cached(path_str: str):
     """
-    Alguns arquivos reais são grandes (dgl1905.xlsx: 11514 linhas x 3 abas)
-    e vários testes leem o mesmo arquivo — cachear evita reabrir/reparsear
-    o mesmo .xlsx repetidas vezes e mantém a suíte rápida.
+    Vários testes leem o mesmo arquivo — cachear evita reabrir/reparsear o
+    mesmo .xlsx repetidas vezes e mantém a suíte rápida (os originais não
+    anonimizados usados durante o desenvolvimento chegavam a 11514 linhas x
+    3 abas; os exemplos versionados em data/examples/ são bem menores).
     """
     return read_workbook(path_str)
 
@@ -36,13 +37,9 @@ REAL_FILES = sorted(DATA_DIR.glob("*.xlsx"))
 # Energias esperadas por arquivo, na ordem das abas (ver inspeção manual dos
 # workbooks reais — todas as abas seguem a convenção "<energia>kV").
 EXPECTED_ENERGIES = {
-    "Dados Consolidados-ICCE3.xlsx": ["10kV", "30kV", "50kV"],
-    "Dados Consolidados-Itatiaia.xlsx": ["10kV", "30kV"],
-    "Dados Consolidados-OP42GC4.xlsx": ["10kV", "30kV", "50kV"],
-    "Dados Consolidados-dgl1905.xlsx": ["10kV", "30kV", "50kV"],
-    "Dados Consolidados-trigoskoe.xlsx": ["10kV", "30kV"],
-    "Dados ConsolidadosICCE10.xlsx": ["10kV", "30kV", "50kV"],
-    "exemplo_dados_consolidados.xlsx": ["10kV"],
+    "example_single_energy.xlsx": ["10kV"],
+    "example_two_energies.xlsx": ["10kV", "30kV"],
+    "example_three_energies.xlsx": ["10kV", "30kV", "50kV"],
 }
 
 # Arquivos que exportam CompositeDepth (mm) diretamente (não devem acionar o
@@ -50,8 +47,7 @@ EXPECTED_ENERGIES = {
 # a maioria dos arquivos reais só tem CoreDepth, então o fallback é o
 # caminho comum, não a exceção.
 FILES_WITH_COMPOSITE_DEPTH = {
-    "Dados Consolidados-OP42GC4.xlsx",
-    "exemplo_dados_consolidados.xlsx",
+    "example_single_energy.xlsx",
 }
 
 
@@ -61,9 +57,10 @@ def real_file(request):
 
 
 def test_real_files_present_for_integration_tests():
-    # Guarda contra o diretório data/ mudar de lugar/ficar vazio sem que os
-    # testes de integração percebam (eles ficariam vacuamente "verdes").
-    assert len(REAL_FILES) >= 7
+    # Guarda contra o diretório data/examples/ mudar de lugar/ficar vazio
+    # sem que os testes de integração percebam (eles ficariam vacuamente
+    # "verdes").
+    assert len(REAL_FILES) >= 3
 
 
 def test_read_workbook_detects_expected_energies_per_sheet(real_file):
@@ -109,8 +106,8 @@ def test_select_rep0_and_detect_replicates_on_every_real_sheet(real_file):
         assert (rep0[REPLICATE_COL] == REP0_LABEL).all()
 
 
-def test_multi_energy_file_icce3_has_three_independent_sheets():
-    path = DATA_DIR / "Dados Consolidados-ICCE3.xlsx"
+def test_multi_energy_file_three_energies_has_three_independent_sheets():
+    path = DATA_DIR / "example_three_energies.xlsx"
     sheets, skipped = _read_workbook_cached(str(path))
 
     assert skipped == []

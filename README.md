@@ -66,7 +66,7 @@ or, equivalently, using the helper launcher (finds the `.venv` Streamlit
 executable for you, on Windows or Linux):
 
 ```bash
-python iniciar.py
+python launch.py
 ```
 
 Either way, Streamlit opens the app in your browser. Upload a `.xlsx`
@@ -84,7 +84,7 @@ python setup_shortcut.py
 ```
 
 This generates an app icon from `assets/lamplus_logo.png` and creates a
-shortcut pointing at `iniciar.py`, using the Python interpreter from
+shortcut pointing at `launch.py`, using the Python interpreter from
 `.venv` when one exists. On Windows this requires `pywin32` (already
 listed in `requirements.txt`).
 

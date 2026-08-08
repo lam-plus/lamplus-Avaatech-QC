@@ -20,6 +20,12 @@ __pycache__/
 # Banco de auditoria (dados locais, não versionados)
 data/audit.db
 
+# Workbooks originais do Avaatech (dados reais, confidenciais - não
+# versionados). Os exemplos anonimizados usados por testes/demonstração
+# ficam em data/examples/, que é versionado (ver exceção abaixo).
+data/*.xlsx
+!data/examples/
+
 # PyInstaller build artifacts
 installer/dist/
 installer/build/

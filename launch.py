@@ -1,10 +1,10 @@
 """
-LAM+ Core QC — iniciar.py
+LAM+ Core QC — launch.py
 Starts the Streamlit app (V2, src/qc_avaatech.py) using the streamlit
 executable from the local .venv, on Windows or Ubuntu/Linux.
 
 Usage:
-    python iniciar.py
+    python launch.py
 """
 
 import os

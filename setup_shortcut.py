@@ -1,6 +1,6 @@
 """
 LAM+ Core QC — setup_shortcut.py
-Generates the app icon and creates a desktop shortcut for iniciar.py,
+Generates the app icon and creates a desktop shortcut for launch.py,
 automatically detecting the operating system (Windows or Ubuntu/Linux).
 
 Usage:
@@ -15,7 +15,7 @@ import sys
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 LOGO_PNG = os.path.join(BASE_DIR, "assets", "lamplus_logo.png")
 LOGO_ICO = os.path.join(BASE_DIR, "assets", "lamplus_logo.ico")
-TARGET_SCRIPT = os.path.join(BASE_DIR, "iniciar.py")
+TARGET_SCRIPT = os.path.join(BASE_DIR, "launch.py")
 SHORTCUT_NAME = "LAM+ Core QC"
 APP_DESCRIPTION = "LAM+ Core QC — Avaatech XRF Core Scanner"
 
@@ -49,7 +49,7 @@ def find_venv_python_linux():
 # ============================================================
 
 def create_shortcut_windows():
-    """Creates a .lnk shortcut on the desktop, pointing to iniciar.py via pywin32."""
+    """Creates a .lnk shortcut on the desktop, pointing to launch.py via pywin32."""
     try:
         import win32com.client
     except ImportError:

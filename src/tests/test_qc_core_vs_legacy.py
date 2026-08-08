@@ -68,10 +68,10 @@ def _rep0_from_raw(df: pd.DataFrame) -> pd.DataFrame:
 
 
 REAL_FILES_AND_SHEETS = [
-    ("Dados Consolidados-ICCE3.xlsx", "10kV", "10kV"),
-    ("Dados Consolidados-ICCE3.xlsx", "30kV", "30kV"),
-    ("Dados Consolidados-ICCE3.xlsx", "50kV", "50kV"),
-    ("exemplo_dados_consolidados.xlsx", "10kv", "10kV"),
+    ("example_three_energies.xlsx", "10kV", "10kV"),
+    ("example_three_energies.xlsx", "30kV", "30kV"),
+    ("example_three_energies.xlsx", "50kV", "50kV"),
+    ("example_single_energy.xlsx", "10kv", "10kV"),
 ]
 
 
@@ -139,7 +139,7 @@ def test_qc3_incoherent_scatter_matches_legacy_rh_la_inc(real_rep0_pair):
 
 def test_50kv_coherent_and_incoherent_are_neutral_in_both_versions():
     legacy_qc_core = _load_legacy_qc_core()
-    path = DATA_DIR / "Dados Consolidados-ICCE3.xlsx"
+    path = DATA_DIR / "example_three_energies.xlsx"
     raw = pd.ExcelFile(path).parse("50kV")
     v2_rep0 = _rep0_from_raw(raw)
     legacy_rep0 = _rep0_from_raw(raw)
@@ -223,12 +223,12 @@ def test_qc5_state_diverges_from_legacy_on_purpose_for_rows_without_replicate():
     valores de Mean_RPD em si são idênticos nos dois (ver
     test_qc5_mean_rpd_matches_legacy) -- só o rótulo de estado muda.
 
-    `Dados Consolidados-ICCE3.xlsx` (aba 10kV) é um caso real onde a
+    `example_three_energies.xlsx` (aba 10kV) é um caso real onde a
     maioria das posições (63 de 65) só tem Rep0, sem Rep1/Rep2 -- não é um
     cenário sintético raro, é o comportamento predominante neste arquivo.
     """
     legacy_qc_core = _load_legacy_qc_core()
-    raw = pd.ExcelFile(DATA_DIR / "Dados Consolidados-ICCE3.xlsx").parse("10kV")
+    raw = pd.ExcelFile(DATA_DIR / "example_three_energies.xlsx").parse("10kV")
     v2_rep0 = _rep0_from_raw(raw)
     legacy_rep0 = _rep0_from_raw(raw)
 
@@ -263,11 +263,11 @@ def _qf_distribution(qf_series) -> dict:
 @pytest.mark.parametrize(
     "filename,sheet_name,energy",
     [
-        ("Dados Consolidados-ICCE3.xlsx", "10kV", "10kV"),
-        ("Dados Consolidados-ICCE3.xlsx", "30kV", "30kV"),
-        ("exemplo_dados_consolidados.xlsx", "10kv", "10kV"),
+        ("example_three_energies.xlsx", "10kV", "10kV"),
+        ("example_three_energies.xlsx", "30kV", "30kV"),
+        ("example_single_energy.xlsx", "10kv", "10kV"),
     ],
-    ids=["ICCE3:10kV", "ICCE3:30kV", "exemplo:10kv"],
+    ids=["three_energies:10kV", "three_energies:30kV", "single_energy:10kv"],
 )
 def test_qf_distribution_matches_legacy_count_mode_when_incoherent_variable_exists(
     filename, sheet_name, energy
@@ -319,7 +319,7 @@ def test_qf_distribution_diverges_from_legacy_at_50kv_due_to_qc4_rolling_fallbac
     comparada aqui de propósito, por causa da divergência do QC4 acima.
     """
     legacy_qc_core = _load_legacy_qc_core()
-    raw = pd.ExcelFile(DATA_DIR / "Dados Consolidados-ICCE3.xlsx").parse("50kV")
+    raw = pd.ExcelFile(DATA_DIR / "example_three_energies.xlsx").parse("50kV")
 
     v2_result = run_qc(raw, "50kV")
     legacy_result, _, _, _ = legacy_qc_core.run_qc(
