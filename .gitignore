@@ -26,6 +26,11 @@ data/audit.db
 data/*.xlsx
 !data/examples/
 
+# Relatórios gerados localmente (dados reais, não versionados) — a
+# pasta em si é mantida via .gitkeep
+data/reports_v2/*
+!data/reports_v2/.gitkeep
+
 # Implementação legada (arquivo histórico, não versionado — ver ARCHITECTURE.md)
 LEGACY/
 
