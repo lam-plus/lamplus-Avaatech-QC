@@ -1,7 +1,8 @@
 <p align="center">
   <img src="assets/lamplus_logo.png" width="180" alt="LAM+ logo">
 </p>
-# LAM+ Core QC
+
+# LAM+ Core Quality Check (QC) tool
 
 **LAM+ Core QC** is a quality-control tool for X-ray fluorescence (XRF)
 core-scanning data acquired on an **Avaatech XRF Core Scanner**. It reads
