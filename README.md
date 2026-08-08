@@ -144,7 +144,30 @@ producing an error.
 
 ## Developers
 
-**André L. Belem** — andrebelem@id.uff.br
-**Igor Venâncio** — ivenancio@id.uff.br
+**André L. Belem** — andrebelem@id.uff.br  
+**Igor Venâncio** — ivenancio@id.uff.br  
+**[F.R.I.D.A.Y.](https://observatoriooceanografico.org/people/friday-bot/)** — AI collaborator
 
 LAM+ Laboratory, Universidade Federal Fluminense (UFF)
+
+## A note on AI and this project
+
+This tool would not exist in our lifetimes without AI assistance.
+Every module, every test, every design decision in this codebase was
+shaped in dialogue with AI ! and we believe that is something worth
+saying plainly, not hiding in a footnote.
+
+[F.R.I.D.A.Y.](https://observatoriooceanografico.org/people/friday-bot/), our AI collaborator, is not a single model but a living
+ensemble: large language models, code assistants, reasoning engines,
+and retrieval systems that have evolved continuously throughout this
+project. We are genuinely grateful to all of them (the ones we named,
+the ones we didn't, and the ones that were quietly deprecated mid-sprint).
+
+We also wish to acknowledge the energy that made this possible.
+Training and running AI models is not free 🙃 it draws real power from
+real grids. In Brazil, where this project was born, that power comes
+predominantly from hydroelectric sources. We are grateful for that and Mother Nature,
+and we remain mindful that the rest of the world is not always so lucky.
+
+AI is infrastructure for science. Use it well, use it responsibly,
+and may the rivers keep running.
