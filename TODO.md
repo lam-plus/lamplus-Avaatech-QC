@@ -5,11 +5,11 @@ pendências da versão anterior estão em `LEGACY/TODO.md`.
 
 ## 1. Definições iniciais
 
-- [ ] Confirmar o escopo da V2.
-- [ ] Confirmar os módulos QC1–QC5.
-- [ ] Confirmar as regras de QF por contagem.
-- [ ] Confirmar o tratamento de QF indeterminado.
-- [ ] Confirmar o formato de saída.
+- [x] Confirmar o escopo da V2.
+- [x] Confirmar os módulos QC1–QC5.
+- [x] Confirmar as regras de QF por contagem.
+- [x] Confirmar o tratamento de QF indeterminado.
+- [x] Confirmar o formato de saída.
 - [x] Confirmar a estrutura de arquivos. (Etapa 1 — `qc_config.py`, `qc_io.py`,
       `qc_core.py`, `qc_reports.py`, `qc_avaatech.py`, `tests/` criados em `src/`
       com contratos/assinaturas, sem lógica científica ainda.)
@@ -244,13 +244,22 @@ pendências da versão anterior estão em `LEGACY/TODO.md`.
 
 ## 8. Próximos itens planejados
 
-- [ ] Documentar os 5 módulos QC (QC1–QC5) como referência consultável na
+- [x] Documentar os 5 módulos QC (QC1–QC5) como referência consultável na
       sidebar: criar `src/docs/` com o conteúdo (um arquivo por módulo ou
       um único texto estruturado) e um `st.expander`/seção na sidebar de
       `qc_avaatech.py` que exiba essa documentação sem sair da interface.
-- [ ] Adicionar botão de feedback por email na sidebar (ex. `mailto:`
+      (`src/docs/QC1_instrument_stability.md`..`QC5_replicates.md` +
+      `QF_quality_flags.md`; expander "Protocol Reference" na sidebar via
+      `_render_protocol_reference`, com `st.selectbox` por módulo;
+      conteúdo sempre em inglês, independente do idioma da interface — só
+      o label do expander/seletor é traduzido.)
+- [x] Adicionar botão de feedback por email na sidebar (ex. `mailto:`
       com link/botão, ou pequeno formulário) para o operador reportar
       problemas ou sugestões diretamente da interface.
+      (`_render_feedback_button`/`_feedback_mailto_url`: `st.link_button`
+      com `mailto:` para `andrebelem@id.uff.br` e `ivenancio@id.uff.br`
+      via `FEEDBACK_RECIPIENTS`, assunto/corpo pré-preenchidos vindos do
+      i18n.)
 - [ ] Criar atalho de desktop para Windows e Ubuntu equivalente ao
       `LEGACY/setup_shortcut.py` (detecção automática do SO, ícone
       convertido de `assets/lamplus_logo.png`, atalho apontando para o
@@ -259,10 +268,10 @@ pendências da versão anterior estão em `LEGACY/TODO.md`.
 
 ## 9. Critérios de conclusão da V2 inicial
 
-- [ ] Todos os testes passam.
-- [ ] Os resultados são reproduzíveis.
-- [ ] O código é independente de `LEGACY/` em runtime.
-- [ ] A documentação está atualizada.
-- [ ] A V2 executa com sucesso nos arquivos reais selecionados.
-- [ ] Não há regressões críticas conhecidas.
+- [x] Todos os testes passam.
+- [x] Os resultados são reproduzíveis.
+- [x] O código é independente de `LEGACY/` em runtime.
+- [x] A documentação está atualizada.
+- [x] A V2 executa com sucesso nos arquivos reais selecionados.
+- [x] Não há regressões críticas conhecidas.
 

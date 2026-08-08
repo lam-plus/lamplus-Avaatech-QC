@@ -10,6 +10,8 @@
   "sidebar_operator_help": "Opcional — identifica quem executou este QC; fica registrado no histórico.",
   "audit_toggle_label": "Ativar registro de auditoria",
   "audit_toggle_help": "Quando ativado (padrão), cada execução de QC bem-sucedida é registrada na trilha de auditoria local (data/audit.db) e aparece na aba Histórico. Quando desativado, nenhuma execução é registrada e a aba Histórico fica oculta — útil em implantações hospedadas sem armazenamento local persistente.",
+  "protocol_reference_label": "Referência do Protocolo",
+  "protocol_reference_selector_label": "Módulo",
   "upload_label": "Workbook Avaatech (.xlsx)",
   "upload_info": "Faça upload de um workbook .xlsx exportado pelo Avaatech.",
   "workbook_read_error": "Erro ao ler o workbook: {error}",
@@ -77,5 +79,8 @@
   "validation_missing_columns": "Colunas obrigatórias ausentes para energia {energy}: {columns}. Verifique se o workbook foi exportado corretamente pelo Avaatech e se esta aba corresponde à energia detectada.",
   "validation_no_depth_column": "Nenhuma coluna de profundidade encontrada ('{depth_col}' ou '{core_depth_col}'). Não é possível ordenar as medições.",
   "validation_depth_fallback": "Coluna '{depth_col}' não encontrada; usando '{core_depth_col}' como profundidade contínua. Isso só é correto para testemunhos de seção única — em testemunhos multi-seção, CoreDepth reinicia a cada seção e pode distorcer a ordenação por profundidade.",
-  "validation_no_rep0": "Nenhuma medição '{rep0_label}' encontrada na coluna '{replicate_col}'. O QC exige ao menos a primeira passada (Rep0) para calcular as métricas desta aba."
+  "validation_no_rep0": "Nenhuma medição '{rep0_label}' encontrada na coluna '{replicate_col}'. O QC exige ao menos a primeira passada (Rep0) para calcular as métricas desta aba.",
+  "feedback_button_label": "Enviar feedback",
+  "feedback_subject": "LAM+ Core QC — Feedback",
+  "feedback_body": "Por favor inclua: arquivo processado, energia e uma descrição do problema.\n\n"
 }

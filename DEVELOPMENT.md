@@ -60,6 +60,20 @@ implementam:
   (`_summary`/`_resumo`).
 - **Campo "Operador" opcional na sidebar**, texto livre, registrado em
   cada execução de auditoria.
+- **Documentação dos módulos QC1–QC5 e QF na sidebar.** `src/docs/`
+  contém um arquivo Markdown por módulo (`QC1_instrument_stability.md`
+  .. `QC5_replicates.md`) mais `QF_quality_flags.md`; a sidebar exibe
+  esse conteúdo via expander "Protocol Reference"
+  (`_render_protocol_reference`), com `st.selectbox` para escolher o
+  módulo. O conteúdo dos docs é sempre em inglês (fonte técnica única),
+  independente do idioma da interface — só o label do expander e do
+  seletor são traduzidos.
+- **Botão de feedback por email na sidebar.** `_render_feedback_button`
+  monta um `st.link_button` com URL `mailto:` (`_feedback_mailto_url`)
+  para os destinatários fixos `andrebelem@id.uff.br` e
+  `ivenancio@id.uff.br` (`FEEDBACK_RECIPIENTS`), com assunto e corpo
+  pré-preenchidos vindos do i18n (`feedback_subject`/`feedback_body`),
+  para o operador reportar problemas ou sugestões sem sair da interface.
 
 ## 2. Relação com `LEGACY/`
 
@@ -150,7 +164,7 @@ interface.
 
 ## 5. Estrutura proposta
 
-Estrutura inicial sugerida:
+Estrutura atual em `src/`:
 
 ```text
 qc_core.py
@@ -158,16 +172,25 @@ qc_config.py
 qc_io.py
 qc_reports.py
 qc_avaatech.py
+qc_audit.py
+i18n.py
+locales/
+    en.json
+    pt.json
 tests/
 ```
 
-Responsabilidades previstas:
+Responsabilidades:
 
 - `qc_config.py`: energias, variáveis, limiares e estados;
 - `qc_io.py`: leitura do workbook, detecção de energia e validação estrutural;
 - `qc_core.py`: cálculos QC1–QC5 e integração dos estados;
 - `qc_reports.py`: Excel e resumo simples;
 - `qc_avaatech.py`: interface mínima;
+- `qc_audit.py`: trilha de auditoria em SQLite (`data/audit.db`);
+- `i18n.py`: carregamento das strings de interface a partir de
+  `locales/en.json`/`locales/pt.json`, com fallback para EN;
+- `locales/`: arquivos de tradução EN/PT usados por `i18n.py`;
 - `tests/`: testes unitários, sintéticos e de integração.
 
 `LEGACY/` não tem um `qc_config.py` separado: todas as constantes
@@ -176,10 +199,11 @@ embutidas no topo de `LEGACY/qc_core.py`. O `qc_config.py` da V2 não é,
 portanto, um port direto de um arquivo homônimo em `LEGACY/` — é uma
 extração deliberada dessas constantes para um módulo próprio, consolidando
 numa única fonte de verdade o que antes estava disperso dentro do núcleo de
-cálculo.
+cálculo. `i18n.py`, `qc_audit.py` e `locales/` não faziam parte da proposta
+original desta seção — foram acrescentados depois da estabilização do
+núcleo (ver seção 1.1 e seção 8).
 
-Essa estrutura é uma proposta e ainda não representa código implementado. Uma
-mudança nela deve preservar a separação de responsabilidades.
+Uma mudança nessa estrutura deve preservar a separação de responsabilidades.
 
 ## 6. Contrato da V2
 
@@ -202,22 +226,30 @@ ausência de um dado obrigatório não pode resultar em OK.
 
 ## 7. Validação
 
-A V2 deverá ser validada contra:
+A V2 foi validada contra:
 
 - os arquivos reais já usados para validar a versão em `LEGACY/`;
 - resultados esperados definidos antes da implementação;
-- casos sintéticos que isolem cada regra;
+- casos sintéticos que isolam cada regra;
 - testes de regressão para os achados críticos C1 e C2.
 
-O teste de C1 deverá garantir que as réplicas sejam associadas por uma chave
-física válida, sem depender de profundidades ausentes em `Rep1` ou `Rep2`.
+O teste de C1 (`test_qc5_regression_c1_matches_by_spectrum_and_coredepth_not_composite_depth`)
+garante que as réplicas sejam associadas por uma chave física válida
+(`Spectrum` + `CoreDepth`), sem depender de profundidades ausentes em `Rep1`
+ou `Rep2`.
 
-O teste de C2 deverá garantir que um dado crítico ausente nunca seja
-classificado como OK, independentemente da regra de agregação.
+O teste de C2 (`test_qc_integrate.py`) garante que um dado crítico ausente
+nunca seja classificado como OK, independentemente da regra de agregação —
+inclusive de ponta a ponta em `run_qc`.
 
-Também deverão existir testes multi-energia, testes de dados malformados e uma
-comparação documentada entre os resultados da V2 e os resultados históricos.
-Diferenças deliberadas deverão ser justificadas.
+Também existem testes multi-energia
+(`test_multi_energy_file_icce3_has_three_independent_sheets`), testes de
+dados malformados e uma comparação documentada entre os resultados da V2 e os
+resultados históricos (`test_qc_core_vs_legacy.py`), com as diferenças
+deliberadas justificadas ali e em `TODO.md`.
+
+O pipeline foi validado contra os 7 arquivos reais em `data/` sem falhas. A
+suíte de testes da V2 tem 194 testes, todos passando.
 
 ## 8. Fora do escopo inicial
 
@@ -234,4 +266,10 @@ Ficam fora do núcleo inicial:
 
 Esses itens poderão ser reavaliados após a conclusão dos critérios da primeira
 versão funcional, sem criar dependência de runtime com `LEGACY/`.
+
+Após a estabilização do núcleo QC1–QC5, os seguintes itens — não previstos
+nesta seção originalmente — foram incorporados: suporte bilíngue EN/PT
+(`i18n.py`, `src/locales/`), trilha de auditoria em SQLite (`qc_audit.py`,
+desligada por padrão), sumário visual por energia na interface e degradação
+graciosa da auditoria em ambiente web/hospedado (ver seção 1.1).
 

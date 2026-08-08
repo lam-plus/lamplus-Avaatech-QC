@@ -15,6 +15,8 @@ Uso:
 from __future__ import annotations
 
 import time
+import urllib.parse
+from functools import lru_cache
 from pathlib import Path
 
 import pandas as pd
@@ -40,6 +42,26 @@ QF_BAR_COLORS = {
 # Caminho absoluto (independente do cwd de onde `streamlit run` foi
 # chamado) para o logo exibido no cabeçalho da interface.
 LOGO_PATH = Path(__file__).resolve().parent.parent / "assets" / "lamplus_logo.png"
+
+# Documentação de referência dos módulos QC1-QC5 e do QF (src/docs/*.md),
+# exibida na sidebar via expander "Protocol Reference" (ver
+# _render_protocol_reference). Conteúdo sempre em inglês, independente do
+# idioma da interface -- só o label do expander/seletor é traduzido (ver
+# i18n).
+DOCS_DIR = Path(__file__).resolve().parent / "docs"
+PROTOCOL_DOCS = {
+    "QC1": "QC1_instrument_stability.md",
+    "QC2": "QC2_coherent_scatter.md",
+    "QC3": "QC3_incoherent_scatter.md",
+    "QC4": "QC4_rolling_qc.md",
+    "QC5": "QC5_replicates.md",
+    "QF": "QF_quality_flags.md",
+}
+
+# Destinatários fixos do botão de feedback da sidebar (ver
+# _feedback_mailto_url) -- não vem do i18n porque endereço de email não é
+# texto traduzível.
+FEEDBACK_RECIPIENTS = ("andrebelem@id.uff.br", "ivenancio@id.uff.br")
 
 # Chave i18n de cada coluna de RUNS_COLUMNS (qc_audit.py), na mesma ordem --
 # usada só para traduzir os cabeçalhos da tabela exibida na aba "Histórico".
@@ -404,6 +426,57 @@ def _render_processing_tab(
     )
 
 
+@lru_cache(maxsize=None)
+def _load_protocol_doc(module: str) -> str:
+    """Lê src/docs/<module>.md (conteúdo em inglês, fixo). Cacheado -- os
+    arquivos são estáticos e lidos repetidamente a cada rerender da sidebar."""
+    path = DOCS_DIR / PROTOCOL_DOCS[module]
+    return path.read_text(encoding="utf-8")
+
+
+def _render_protocol_reference(strings: dict[str, str]) -> None:
+    """
+    Expander "Protocol Reference" na sidebar: exibe o conteúdo de
+    src/docs/QC1-QC5 e QF_quality_flags.md, selecionável via st.selectbox.
+
+    O conteúdo dos docs é sempre em inglês (fonte técnica única),
+    independente do idioma da interface -- só o label do expander e do
+    seletor são traduzidos via i18n.
+    """
+    with st.sidebar.expander(strings["protocol_reference_label"], expanded=False):
+        selected = st.selectbox(
+            strings["protocol_reference_selector_label"],
+            options=list(PROTOCOL_DOCS),
+            key="protocol_reference_module",
+        )
+        st.markdown(_load_protocol_doc(selected))
+
+
+def _feedback_mailto_url(strings: dict[str, str]) -> str:
+    """
+    Monta a URL mailto: do botão de feedback da sidebar (ver
+    _render_feedback_button): destinatários fixos (FEEDBACK_RECIPIENTS),
+    assunto e corpo pré-preenchidos vindos do i18n (feedback_subject /
+    feedback_body), já url-encoded para o mailto:.
+    """
+    to = ",".join(FEEDBACK_RECIPIENTS)
+    query = urllib.parse.urlencode(
+        {"subject": strings["feedback_subject"], "body": strings["feedback_body"]},
+        quote_via=urllib.parse.quote,
+    )
+    return f"mailto:{to}?{query}"
+
+
+def _render_feedback_button(strings: dict[str, str]) -> None:
+    """
+    Botão "Enviar feedback" na sidebar: st.link_button com href mailto:
+    (ver _feedback_mailto_url) -- abre o cliente de email padrão do usuário
+    com destinatários, assunto e corpo pré-preenchidos. Não envia nada
+    diretamente (sem SMTP/rede) nem afeta nenhuma lógica de QC.
+    """
+    st.sidebar.link_button(strings["feedback_button_label"], _feedback_mailto_url(strings))
+
+
 def _select_language() -> str:
     """
     Seletor de idioma da sidebar: EN é o padrão (primeiro em
@@ -457,6 +530,9 @@ def main() -> None:
         help=strings["audit_toggle_help"],
         key="audit_enabled",
     )
+
+    _render_protocol_reference(strings)
+    _render_feedback_button(strings)
 
     if audit_enabled:
         tab_processing, tab_history = st.tabs(
