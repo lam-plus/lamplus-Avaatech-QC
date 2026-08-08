@@ -26,9 +26,10 @@ def load_locale_strings(lang: str) -> dict[str, str]:
     precisam do dict `strings` do i18n (ex. check_columns, format_summary_text).
 
     Um `import i18n` num módulo de teste ficaria em sys.modules pelo resto
-    da sessão do pytest e colidiria com o `i18n.py` da LEGACY, carregado sob
-    o mesmo nome por test_qc_core_vs_legacy.py -- ver comentário em
-    qc_avaatech._select_language. Ler o JSON direto evita a colisão.
+    da sessão do pytest. Ler o JSON direto evita depender da identidade do
+    módulo `i18n` da V2 (ver histórico do import local em
+    qc_avaatech._select_language, mantido por precaução mesmo após a remoção
+    de test_qc_core_vs_legacy.py -- ARCHITECTURE.md, seção 7).
     """
     with (LOCALES_DIR / f"{lang}.json").open(encoding="utf-8") as fh:
         return json.load(fh)

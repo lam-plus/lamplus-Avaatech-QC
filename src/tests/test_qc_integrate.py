@@ -25,8 +25,10 @@ Casos cobertos:
       réplicas caso contrário).
 
 Não depende de LEGACY/ (ver conftest.py). A comparação de distribuição de
-QF com a LEGACY em arquivos reais está em test_qc_core_vs_legacy.py (único
-arquivo do suite que toca LEGACY/qc_core.py).
+QF com a LEGACY em arquivos reais existiu em test_qc_core_vs_legacy.py, o
+único arquivo do suite que tocava LEGACY/qc_core.py; foi removida por não
+ser reproduzível fora da máquina de desenvolvimento original (LEGACY/ nunca
+foi versionada -- ver ARCHITECTURE.md, seção 7).
 """
 
 from __future__ import annotations

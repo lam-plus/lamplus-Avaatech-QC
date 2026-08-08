@@ -483,14 +483,15 @@ def _select_language() -> str:
     i18n.SUPPORTED_LANGS), PT a alternativa. O nome de cada idioma exibido
     na lista vem do próprio locale (`language_name`), nunca hardcoded aqui.
     """
-    # Import local (não no topo do módulo): LEGACY/ tem seu próprio i18n.py
-    # com nome idêntico. test_qc_core_vs_legacy.py insere LEGACY/ em
-    # sys.path para carregar LEGACY/qc_core.py, que por sua vez importa
-    # "i18n" (o dele). Se o "i18n" da V2 já estivesse em sys.modules antes
-    # disso (import no topo deste módulo, executado por test_imports.py),
-    # esse cache seria reaproveitado no lugar do i18n.py de LEGACY,
-    # quebrando aquele teste. Import local evita a colisão sem tocar em
-    # nenhum teste existente.
+    # Import local (não no topo do módulo): histórico -- LEGACY/ tinha seu
+    # próprio i18n.py com nome idêntico, e o extinto test_qc_core_vs_legacy.py
+    # inseria LEGACY/ em sys.path para carregar LEGACY/qc_core.py, que por
+    # sua vez importava "i18n" (o dele). Import local evitava que o "i18n" da
+    # V2, já em sys.modules por um import no topo deste módulo, fosse
+    # reaproveitado no lugar do i18n.py de LEGACY. Esse teste foi removido
+    # (ver ARCHITECTURE.md, seção 7 -- LEGACY/ nunca foi versionada e não é
+    # mais reproduzível), mas o import local foi mantido por não ter custo e
+    # não depender de nenhuma ordem de import entre módulos.
     import i18n
 
     names = [i18n.load(code)["language_name"] for code in i18n.SUPPORTED_LANGS]

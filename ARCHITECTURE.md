@@ -7,7 +7,7 @@ This document describes the design goals, principles, contracts, and file
 structure of LAM+ Core QC — a quality-control pipeline for acquisition data
 from the Avaatech XRF Core Scanner. It is intended as a reference for
 contributors, not a change log; for the history of changes, see the git log
-and `TODO.md`.
+and the project's GitHub Issues.
 
 ## 1. Design goals
 
@@ -227,13 +227,45 @@ never classified as OK, regardless of the aggregation rule — including
 end-to-end in `run_qc`.
 
 There are also multi-energy tests
-(`test_multi_energy_file_icce3_has_three_independent_sheets`), malformed
-data tests, and a documented comparison against results from the earlier
-internal implementation (`test_qc_core_vs_legacy.py`), with deliberate
-differences justified there and in `TODO.md`.
+(`test_multi_energy_file_icce3_has_three_independent_sheets`) and malformed
+data tests.
 
 The pipeline has been validated against 7 real files in `data/` with no
-failures. The test suite currently has 194 tests, all passing.
+failures. The test suite currently has 151 tests, all passing.
+
+### 7.1 Legacy parity comparison (no longer reproducible)
+
+During development, a dedicated test file
+(`src/tests/test_qc_core_vs_legacy.py`, removed) loaded the earlier
+internal implementation (`LEGACY/qc_core.py`) at runtime — inserted into
+`sys.path` only for the duration of that load, under the module name
+`legacy_qc_core` to avoid colliding with the V2 `qc_core` — and asserted
+numerical parity between the two for QC1–QC5 (`Throughput_z`, `Coherent_z`,
+`Incoherent_z`, `Rolling_Delta_Z`, `Mean_RPD`) and for the resulting QF
+distribution, against the real files in `data/examples/`. It also
+documented the deliberate divergences confirmed by the user during that
+validation:
+
+- QC5 classifies `Mean_RPD == NaN` (no additional replicate) as
+  `NOT_APPLICABLE`; the LEGACY classified it as OK.
+- At 50 kV, the LEGACY falls back to using Throughput drift as a stand-in
+  for QC4 (`use_combined_rolling`) because there is no scatter variable at
+  that energy; the V2 deliberately does not reintroduce that fallback and
+  marks QC4 as `NOT_APPLICABLE` instead (see section 4.1: "keep the number
+  of configurable options small").
+
+`LEGACY/` was never committed to this repository (it is listed in
+`.gitignore` and only ever existed on the original author's development
+machine) — so this comparison cannot be reproduced by other contributors
+or in CI, and the test file always skipped for anyone without that
+directory on disk. The file has been removed rather than adapted to
+synthetic data: synthetic parity against a copy of the V2 algorithm itself
+would not test anything the other test files (`test_qc_core.py`,
+`test_qc_integrate.py`) don't already cover, since there is no legacy
+algorithm left to compare against. The two divergences above remain
+enforced by `test_qc_core.py::test_classify_rpd_nan_is_not_applicable_not_ok`
+and by the QC4/50 kV tests in the same file; only the direct byte-for-byte
+comparison against the old implementation was lost.
 
 ## 8. Out of scope
 

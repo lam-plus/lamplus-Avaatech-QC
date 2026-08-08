@@ -56,9 +56,8 @@ pytest src/tests
 ```
 
 `src/tests/conftest.py` points `DATA_DIR` at this directory
-(`data/examples/`), and `src/tests/test_qc_io_real_data.py` and
-`src/tests/test_qc_core_vs_legacy.py` run their integration checks
-against these three files.
+(`data/examples/`), and `src/tests/test_qc_io_real_data.py` runs its
+integration checks against these three files.
 
 ## About the original data
 

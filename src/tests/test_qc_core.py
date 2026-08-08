@@ -332,7 +332,7 @@ def test_classify_rpd_thresholds():
 
 def test_classify_rpd_nan_is_not_applicable_not_ok():
     # Decisão da Etapa 4: ausência de réplica é NOT_APPLICABLE, não OK
-    # (diverge deliberadamente da LEGACY -- ver test_qc_core_vs_legacy.py).
+    # (diverge deliberadamente da LEGACY -- ver ARCHITECTURE.md, seção 7).
     assert classify_rpd(float("nan")) == QCState.NOT_APPLICABLE
 
 
