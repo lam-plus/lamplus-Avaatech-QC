@@ -6,6 +6,7 @@ streamlit
 openpyxl
 matplotlib
 Pillow
+pytest
 pywin32; sys_platform == "win32"  # dependência de build/setup apenas (setup_shortcut.py) — não é usada em runtime por src/
 
 # pyinstaller  # dependência só de build (installer/build_exe.py) — descomente para gerar o executável
