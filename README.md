@@ -2,7 +2,14 @@
   <img src="assets/lamplus_logo.png" width="180" alt="LAM+ logo">
 </p>
 
+<p align="center">
+[![Tests](https://github.com/lam-plus/lamplus-Avaatech-QC/actions/workflows/tests.yml/badge.svg)](https://github.com/lam-plus/lamplus-Avaatech-QC/actions/workflows/tests.yml)
 [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.21855319.svg)](https://doi.org/10.5281/zenodo.21855319)
+[![Python](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![Streamlit](https://img.shields.io/badge/built%20with-Streamlit-ff4b4b.svg)](https://streamlit.io)
+[![Dependabot](https://img.shields.io/badge/dependabot-enabled-025E8C?logo=dependabot)](https://github.com/lam-plus/lamplus-Avaatech-QC/security/dependabot)
+</p>
 
 # LAM+ Core Quality Check (QC) tool
 
