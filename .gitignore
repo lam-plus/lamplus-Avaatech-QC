@@ -26,7 +26,7 @@ data/audit.db
 data/*.xlsx
 !data/examples/
 
-# Implementação legada (arquivo histórico, não versionado — ver DEVELOPMENT.md)
+# Implementação legada (arquivo histórico, não versionado — ver ARCHITECTURE.md)
 LEGACY/
 
 # PyInstaller build artifacts

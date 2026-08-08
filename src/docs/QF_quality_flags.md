@@ -49,7 +49,7 @@ Once mandatory-`INDETERMINATE` is ruled out, the row's `alerts` and
 | **QF1** | Exactly one module `ALERT`, none `CRITICAL` | A single, mild deviation in one module; not yet indicative of a real problem, but worth a quick look if it clusters with neighboring rows. |
 | **QF2** | Moderate combined severity — one `CRITICAL` alone, or several `ALERT`s (2–3) with at most one `CRITICAL` | Meaningful evidence of an acquisition issue, either from one strong deviation or several moderate ones together; not yet the most severe tier. |
 | **QF3** | Severe — two or more modules `CRITICAL`, or four or more modules `ALERT` | Strong, multi-module evidence of an acquisition problem at this position; the least reliable tier of usable-but-flagged data. |
-| **INDETERMINATE** | QC1, QC2, or QC3 is `INDETERMINATE` for this row (a mandatory module's critical input is `NaN`, not structurally absent) | Quality cannot be judged at all for this row — a required raw value is missing, so the pipeline refuses to assign a "real" QF rather than default to `QF0` (this is the fix for the historical bug where missing critical data silently read as OK — see [DEVELOPMENT.md](../../DEVELOPMENT.md) §4.2). |
+| **INDETERMINATE** | QC1, QC2, or QC3 is `INDETERMINATE` for this row (a mandatory module's critical input is `NaN`, not structurally absent) | Quality cannot be judged at all for this row — a required raw value is missing, so the pipeline refuses to assign a "real" QF rather than default to `QF0` (this is the fix for the historical bug where missing critical data silently read as OK — see [ARCHITECTURE.md](../../ARCHITECTURE.md) §4.2). |
 
 ## What to do with each flag
 

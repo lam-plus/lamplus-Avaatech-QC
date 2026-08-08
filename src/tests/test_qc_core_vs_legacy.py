@@ -307,7 +307,7 @@ def test_qf_distribution_diverges_from_legacy_at_50kv_due_to_qc4_rolling_fallbac
     (`use_combined_rolling`, ver compute_scores) e usa a deriva do
     Throughput como substituto -- então a LEGACY pode gerar ALERTs de QC4
     em 50 kV onde a V2 nunca gera nenhum. É uma simplificação deliberada da
-    V2 (DEVELOPMENT.md 4.1: "reduzir o número de opções configuráveis"),
+    V2 (ARCHITECTURE.md 4.1: "reduzir o número de opções configuráveis"),
     não um bug: a V2 não reintroduz Throughput como proxy de deriva
     espectral quando o dado espectral em si não existe para a energia.
 

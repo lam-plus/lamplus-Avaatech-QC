@@ -26,7 +26,7 @@ from qc_io import resolve_depth_column
 # (Etapa 6 do plano-de-acao.md). Não inclui colunas intermediárias do
 # cálculo (z-scores, Mean_RPD, QC_Module_States, contagens) -- essas ficam
 # só no DataFrame interno de qc_core.run_qc; a saída para o usuário é
-# deliberadamente reduzida a este conjunto (DEVELOPMENT.md 4.1: saída
+# deliberadamente reduzida a este conjunto (ARCHITECTURE.md 4.1: saída
 # direta e rastreável, sem excesso de colunas).
 QC_EXPORT_COLUMNS = (
     "QC1_State",

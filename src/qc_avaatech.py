@@ -6,7 +6,7 @@ visualização de resumo e download. Único ponto de entrada da UI da V2.
 
 Não contém cálculo científico (delega a qc_core.py/qc_io.py/qc_reports.py)
 e não importa nada de LEGACY/. Sem PCA, sem múltiplos modos de QF, sem
-opções avançadas (ver DEVELOPMENT.md, seção 8).
+opções avançadas (ver ARCHITECTURE.md, seção 8).
 
 Uso:
     streamlit run src/qc_avaatech.py

@@ -6,7 +6,7 @@ Verifica que:
     - nenhum módulo da V2 importa (direta ou indiretamente por texto-fonte)
       nada de LEGACY/.
 
-Não depende de LEGACY/ estar no PYTHONPATH (ver DEVELOPMENT.md, seção 2).
+Não depende de LEGACY/ estar no PYTHONPATH (ver ARCHITECTURE.md, seção 2).
 """
 
 from __future__ import annotations

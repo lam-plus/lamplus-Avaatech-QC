@@ -85,7 +85,7 @@ def read_workbook(file_or_buffer: Any) -> tuple[list[dict], list[str]]:
           movida para `skipped`, mesmo quando é a única aba do workbook
           (simplificação deliberada da V2 em relação à LEGACY: sem exceção
           de "aba única assume DEFAULT_ENERGY" — reduz opções implícitas,
-          ver DEVELOPMENT.md 4.1).
+          ver ARCHITECTURE.md 4.1).
     """
     xls = pd.ExcelFile(file_or_buffer)
     sheets: list[dict] = []

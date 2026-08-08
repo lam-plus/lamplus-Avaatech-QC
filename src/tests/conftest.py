@@ -3,7 +3,7 @@ Configuração compartilhada dos testes da V2.
 
 Garante que os módulos em `src/` (qc_config, qc_io, qc_core, ...) sejam
 importáveis diretamente (ex. `import qc_io`) sem adicionar `LEGACY/` ao
-PYTHONPATH (ver DEVELOPMENT.md, seção 2).
+PYTHONPATH (ver ARCHITECTURE.md, seção 2).
 """
 
 from __future__ import annotations

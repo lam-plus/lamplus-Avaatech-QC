@@ -5,7 +5,7 @@ Responsabilidade: cálculos QC1-QC5 e integração dos estados em um Quality
 Flag (QF) por contagem. Lib pura — sem dependência de UI (Streamlit) e sem
 importar nada de LEGACY/.
 
-Módulos do núcleo inicial (ver DEVELOPMENT.md, seção 3):
+Módulos do núcleo inicial (ver ARCHITECTURE.md, seção 3):
     QC1 — Instrument Stability   (qc_instrument_stability)
     QC2 — Coherent Scatter       (qc_coherent_scatter)
     QC3 — Incoherent Scatter     (qc_incoherent_scatter)
@@ -423,7 +423,7 @@ MANDATORY_MODULES = (
 )
 
 # Módulos cujo INDETERMINATE por linha nunca penaliza o QF — só vira
-# evidência (ver DEVELOPMENT.md 4.2: "ausência legítima" não é dado
+# evidência (ver ARCHITECTURE.md 4.2: "ausência legítima" não é dado
 # crítico faltante quando o módulo é opcional).
 OPTIONAL_MODULES = (
     QCModule.QC4_ROLLING,
