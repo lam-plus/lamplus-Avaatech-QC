@@ -35,6 +35,9 @@ data/reports_v2/*
 # Implementação legada (arquivo histórico, não versionado — ver ARCHITECTURE.md)
 LEGACY/
 
+# Notas e scripts privados de trabalho (não versionados)
+PRIVATE/
+
 # PyInstaller build artifacts
 installer/dist/
 installer/build/
